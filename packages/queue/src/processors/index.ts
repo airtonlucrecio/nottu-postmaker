@@ -1,0 +1,1 @@
+export { PostGenerationProcessor } from './post-generation.processor';
