@@ -1,85 +1,65 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { QueueService, PostGenerationProcessor, queueNames } from '@nottu/queue';
+import { QueueService, PostGenerationProcessor } from '@nottu/queue';
 import { GenerationService } from '../services/generation.service';
 import { OpenAIService } from '../services/openai.service';
 import { VisualAIService } from '../services/visual-ai.service';
+import { DiskStorageService } from '../services/disk-storage.service';
+import { JsonStorageService } from '../services/json-storage.service';
 import { HistoryService } from '../services/history.service';
-import { SettingsService } from '../services/settings.service';
 
 @Module({
   imports: [ConfigModule],
   providers: [
     {
       provide: QueueService,
+      inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const queueConfig = {
+        return new QueueService({
           redis: {
-            host: configService.get('REDIS_HOST', 'localhost'),
-            port: configService.get('REDIS_PORT', 6379),
-            password: configService.get('REDIS_PASSWORD'),
-            db: configService.get('REDIS_DB', 0),
+            host: configService.get<string>('REDIS_HOST', 'localhost'),
+            port: parseInt(configService.get<string>('REDIS_PORT', '6379'), 10),
+            password: configService.get<string>('REDIS_PASSWORD'),
+            db: parseInt(configService.get<string>('REDIS_DB', '0'), 10),
           },
           concurrency: {
-            postGeneration: configService.get('QUEUE_CONCURRENCY_POST', 2),
-            imageGeneration: configService.get('QUEUE_CONCURRENCY_IMAGE', 1),
-            batchGeneration: configService.get('QUEUE_CONCURRENCY_BATCH', 1),
+            postGeneration: parseInt(configService.get<string>('QUEUE_CONCURRENCY_POST', '2'), 10),
           },
-        };
-        return new QueueService(queueConfig);
+          removeOnComplete: parseInt(configService.get<string>('QUEUE_REMOVE_ON_COMPLETE', '50'), 10),
+          removeOnFail: parseInt(configService.get<string>('QUEUE_REMOVE_ON_FAIL', '10'), 10),
+          defaultJobOptions: {
+            removeOnComplete: 10,
+            removeOnFail: 5,
+            attempts: parseInt(configService.get<string>('QUEUE_RETRY_ATTEMPTS', '3'), 10),
+            backoff: {
+              type: 'exponential',
+              delay: parseInt(configService.get<string>('QUEUE_RETRY_DELAY', '2000'), 10),
+            },
+          },
+        });
       },
-      inject: [ConfigService],
     },
-    PostGenerationProcessor,
-    GenerationService,
+    JsonStorageService,
+    DiskStorageService,
     OpenAIService,
     VisualAIService,
+    GenerationService,
     HistoryService,
-    SettingsService,
     {
-      provide: 'QUEUE_WORKERS',
-      useFactory: (
-        queueService: QueueService,
-        processor: PostGenerationProcessor,
-        generationService: GenerationService,
-      ) => {
-        // Register Post Generation Worker
-        queueService.registerWorker(
-          queueNames.POST_GENERATION,
-          async (job) => {
-            return await processor.processPostGeneration(job);
-          }
-        );
-
-        // Register Image Generation Worker
-        queueService.registerWorker(
-          queueNames.IMAGE_GENERATION,
-          async (job) => {
-            return await processor.processImageGeneration(job);
-          }
-        );
-
-        // Register Batch Generation Worker
-        queueService.registerWorker(
-          queueNames.BATCH_GENERATION,
-          async (job) => {
-            return await processor.processBatchGeneration(job);
-          }
-        );
-
-        return 'Workers registered successfully';
+      provide: PostGenerationProcessor,
+      useFactory: (generationService: GenerationService) =>
+        new PostGenerationProcessor(({ job, update }) => generationService.processJob(job, update)),
+      inject: [GenerationService],
+    },
+    {
+      provide: 'QUEUE_WORKER',
+      useFactory: (queueService: QueueService, processor: PostGenerationProcessor) => {
+        queueService.registerPostGenerationWorker((context) => processor.handle(context));
+        return true;
       },
-      inject: [QueueService, PostGenerationProcessor, GenerationService],
+      inject: [QueueService, PostGenerationProcessor],
     },
   ],
-  exports: [
-    QueueService,
-    PostGenerationProcessor,
-    GenerationService,
-    OpenAIService,
-    VisualAIService,
-    HistoryService,
-    SettingsService,
-  ],
+  exports: [QueueService, GenerationService, HistoryService],
 })
 export class QueueModule {}

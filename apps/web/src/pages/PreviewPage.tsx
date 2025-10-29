@@ -11,22 +11,23 @@ import { PostPreview } from '../components/Post/PostPreview';
 import { usePostGeneration } from '../hooks/usePostGeneration';
 
 interface JobStatus {
-  id: string;
-  status: 'waiting' | 'active' | 'completed' | 'failed';
+  jobId: string;
+  status: 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused';
   progress?: {
-    step: string;
-    message: string;
     percentage: number;
+    message?: string;
   };
   result?: {
-    id: string;
-    content: {
-      caption: string;
-      hashtags: string[];
+    caption?: string;
+    hashtags?: string[];
+    assets?: {
+      finalPath: string;
+      captionPath: string;
+      hashtagsPath: string;
+      metadataPath: string;
     };
-    imageUrl?: string;
-    renderUrl?: string;
-    metadata: any;
+    folder?: string;
+    metadata?: Record<string, any>;
   };
   error?: string;
 }
@@ -208,12 +209,12 @@ export function PreviewPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {jobStatus?.status === 'completed' && jobStatus.result ? (
           <div className="max-w-2xl mx-auto">
-            <PostPreview 
+            <PostPreview
               postData={{
-                id: jobStatus.result.id,
-                imageUrl: jobStatus.result.imageUrl,
-                caption: jobStatus.result.content.caption,
-                hashtags: jobStatus.result.content.hashtags,
+                id: jobStatus.jobId,
+                imageUrl: jobStatus.result.assets?.finalPath,
+                caption: jobStatus.result.caption || '',
+                hashtags: jobStatus.result.hashtags || [],
                 status: 'completed'
               }}
             />
@@ -223,28 +224,30 @@ export function PreviewPage() {
               <div className="mt-6 bg-nottu-gray-800 border border-nottu-gray-700 rounded-lg p-4">
                 <h3 className="text-white font-medium mb-3">Informações da Geração</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  {jobStatus.result.metadata.generationTime && (
+                  {jobStatus.result.metadata.completedAt && (
                     <div>
-                      <span className="text-nottu-gray-400">Tempo de geração:</span>
-                      <span className="text-white ml-2">{jobStatus.result.metadata.generationTime}s</span>
+                      <span className="text-nottu-gray-400">Concluído em:</span>
+                      <span className="text-white ml-2">{new Date(jobStatus.result.metadata.completedAt).toLocaleString()}</span>
                     </div>
                   )}
-                  {jobStatus.result.metadata.provider && (
+                  {jobStatus.result.metadata.provider?.image && (
                     <div>
                       <span className="text-nottu-gray-400">Provider:</span>
-                      <span className="text-white ml-2">{jobStatus.result.metadata.provider}</span>
+                      <span className="text-white ml-2">{jobStatus.result.metadata.provider.image}</span>
                     </div>
                   )}
-                  {jobStatus.result.metadata.tokensUsed && (
+                  {jobStatus.result.metadata.output?.finalPath && (
                     <div>
-                      <span className="text-nottu-gray-400">Tokens usados:</span>
-                      <span className="text-white ml-2">{jobStatus.result.metadata.tokensUsed}</span>
+                      <span className="text-nottu-gray-400">Arquivo:</span>
+                      <span className="text-white ml-2">{jobStatus.result.metadata.output.finalPath}</span>
                     </div>
                   )}
-                  {jobStatus.result.metadata.model && (
+                  {jobStatus.result.metadata.render && (
                     <div>
-                      <span className="text-nottu-gray-400">Modelo:</span>
-                      <span className="text-white ml-2">{jobStatus.result.metadata.model}</span>
+                      <span className="text-nottu-gray-400">Render:</span>
+                      <span className="text-white ml-2">
+                        {jobStatus.result.metadata.render.width}x{jobStatus.result.metadata.render.height} · {jobStatus.result.metadata.render.format.toUpperCase()}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -272,9 +275,9 @@ export function PreviewPage() {
             <h3 className="text-lg font-medium text-white mb-2">Gerando post...</h3>
             {jobStatus?.progress && (
               <div className="space-y-3">
-                <p className="text-nottu-gray-400">{jobStatus.progress.message}</p>
+                <p className="text-nottu-gray-400">{jobStatus.progress.message || 'Processando...'}</p>
                 <div className="w-full bg-nottu-gray-800 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-nottu-purple h-2 rounded-full transition-all duration-300"
                     style={{ width: `${jobStatus.progress.percentage}%` }}
                   />

@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "npm run clean && esbuild src/index.ts --bundle --platform=node --format=cjs --sourcemap --target=node18 --outdir=dist --external:@nottu/* --external:@nestjs/* --external:bull --external:bullmq --external:pino --external:redis && npm run types",
+    "types": "tsc --emitDeclarationOnly",
     "dev": "tsc --watch",
     "clean": "rimraf dist"
   },
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "esbuild": "^0.19.11",
     "rimraf": "^5.0.5",
     "typescript": "^5.3.2"
   }

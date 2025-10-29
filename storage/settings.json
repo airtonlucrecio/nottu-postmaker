@@ -1,0 +1,13 @@
+{
+  "colors": {
+    "primary": "#4E3FE2",
+    "secondary": "#0A0A0F",
+    "accent": "#8B5CF6"
+  },
+  "fonts": {
+    "heading": "Inter",
+    "body": "Inter"
+  },
+  "logoPath": "",
+  "layoutPresets": []
+}

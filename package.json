@@ -9,7 +9,7 @@
     "dev:api": "cd apps/api && npm run dev",
     "dev:web": "cd apps/web && npm run dev",
     "build": "npm run build:packages && npm run build:api && npm run build:web",
-    "build:packages": "cd packages/core && npm run build && cd ../brand-kit && npm run build",
+    "build:packages": "npm run build --prefix packages/core && npm run build --prefix packages/brand-kit && npm run build --prefix packages/render && npm run build --prefix packages/queue",
     "build:api": "cd apps/api && npm run build",
     "build:web": "cd apps/web && npm run build",
     "install:all": "npm install && cd packages/core && npm install && cd ../brand-kit && npm install && cd ../../apps/api && npm install && cd ../web && npm install",
