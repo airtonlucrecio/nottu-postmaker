@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import axios from 'axios';
+import { useMemo, useState } from 'react';
+import axios, { AxiosInstance } from 'axios';
 
 interface GeneratePostRequest {
   topic: string;
@@ -14,44 +14,54 @@ interface GeneratePostRequest {
 }
 
 interface JobStatus {
-  id: string;
-  status: 'waiting' | 'active' | 'completed' | 'failed';
+  jobId: string;
+  status: 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused';
   progress?: {
-    step: string;
-    message: string;
     percentage: number;
+    message?: string;
   };
   result?: {
-    id: string;
-    content: {
-      caption: string;
-      hashtags: string[];
+    caption?: string;
+    hashtags?: string[];
+    assets?: {
+      finalPath: string;
+      captionPath: string;
+      hashtagsPath: string;
+      metadataPath: string;
     };
-    imageUrl?: string;
-    renderUrl?: string;
-    metadata: any;
+    folder?: string;
+    metadata?: Record<string, any>;
   };
   error?: string;
 }
 
+interface GenerationResult {
+  caption: string;
+  hashtags: string[];
+  assets: {
+    finalPath: string;
+    captionPath: string;
+    hashtagsPath: string;
+    metadataPath: string;
+  };
+  folder: string;
+}
+
 export function usePostGeneration() {
   const [isLoading, setIsLoading] = useState(false);
+  const client: AxiosInstance = useMemo(() => {
+    const baseURL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:3000';
+    return axios.create({ baseURL });
+  }, []);
 
   const generatePost = async (request: GeneratePostRequest): Promise<string | null> => {
     setIsLoading(true);
     try {
-      const response = await axios.post('/api/generate', request, {
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_API_KEY || 'dev-key-123'}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.data.success) {
-        return response.data.jobId;
-      } else {
-        throw new Error(response.data.error || 'Erro ao gerar post');
+      const response = await client.post('/api/generate', request);
+      if (response.data?.jobId) {
+        return response.data.jobId as string;
       }
+      throw new Error('Resposta inválida do servidor');
     } catch (error: any) {
       console.error('Erro ao gerar post:', error);
       return null;
@@ -60,38 +70,24 @@ export function usePostGeneration() {
     }
   };
 
-  const generateBatch = async (requests: GeneratePostRequest[]): Promise<string | null> => {
-    setIsLoading(true);
-    try {
-      const response = await axios.post('/api/generate/batch', { requests }, {
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_API_KEY || 'dev-key-123'}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.data.success) {
-        return response.data.jobId;
-      } else {
-        throw new Error(response.data.error || 'Erro ao gerar posts em lote');
-      }
-    } catch (error: any) {
-      console.error('Erro ao gerar posts em lote:', error);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const checkJobStatus = async (jobId: string): Promise<JobStatus | null> => {
     try {
-      const response = await axios.get(`/api/generate/status/${jobId}`, {
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_API_KEY || 'dev-key-123'}`
-        }
-      });
+      const response = await client.get(`/api/generate/status/${jobId}`);
+      const progressData = response.data.progress;
+      const progress = typeof progressData === 'object' && progressData !== null
+        ? {
+            percentage: progressData.percentage ?? 0,
+            message: progressData.message,
+          }
+        : undefined;
 
-      return response.data;
+      return {
+        jobId: response.data.jobId,
+        status: response.data.status,
+        progress,
+        result: response.data.result,
+        error: response.data.error,
+      };
     } catch (error: any) {
       console.error('Erro ao verificar status do job:', error);
       return null;
@@ -99,43 +95,41 @@ export function usePostGeneration() {
   };
 
   const pollJobStatus = async (
-    jobId: string, 
+    jobId: string,
     onUpdate: (status: JobStatus) => void,
     maxAttempts: number = 60,
     interval: number = 2000
-  ): Promise<JobStatus | null> => {
+  ): Promise<GenerationResult | null> => {
     let attempts = 0;
 
-    const poll = async (): Promise<JobStatus | null> => {
-      if (attempts >= maxAttempts) {
-        console.error('Timeout ao aguardar geração do post');
-        return null;
-      }
-
+    while (attempts < maxAttempts) {
       const status = await checkJobStatus(jobId);
-      if (!status) {
-        attempts++;
-        setTimeout(poll, interval);
-        return null;
-      }
+      if (status) {
+        onUpdate(status);
+        if (status.status === 'completed' && status.result?.assets && status.result.folder && status.result.caption && status.result.hashtags) {
+          return {
+            caption: status.result.caption,
+            hashtags: status.result.hashtags,
+            assets: status.result.assets,
+            folder: status.result.folder,
+          };
+        }
 
-      onUpdate(status);
-
-      if (status.status === 'completed' || status.status === 'failed') {
-        return status;
+        if (status.status === 'failed') {
+          return null;
+        }
       }
 
       attempts++;
-      setTimeout(poll, interval);
-      return null;
-    };
+      await new Promise(resolve => setTimeout(resolve, interval));
+    }
 
-    return poll();
+    console.error('Timeout ao aguardar geração do post');
+    return null;
   };
 
   return {
     generatePost,
-    generateBatch,
     checkJobStatus,
     pollJobStatus,
     isLoading

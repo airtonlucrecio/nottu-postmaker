@@ -11,11 +11,8 @@ import { HistoryController } from './controllers/history.controller';
 import { SettingsController } from './controllers/settings.controller';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { RateLimitGuard } from './guards/rate-limit.guard';
-import { GenerationService } from './services/generation.service';
-import { OpenAIService } from './services/openai.service';
-import { VisualAIService } from './services/visual-ai.service';
-import { HistoryService } from './services/history.service';
 import { SettingsService } from './services/settings.service';
+import { JsonStorageService } from './services/json-storage.service';
 import { APP_GUARD } from '@nestjs/core';
 
 // Configuration
@@ -64,10 +61,7 @@ import { APP_GUARD } from '@nestjs/core';
   controllers: [GenerateController, HistoryController, SettingsController],
   providers: [
     // Exported/available services for controllers
-    GenerationService,
-    OpenAIService,
-    VisualAIService,
-    HistoryService,
+    JsonStorageService,
     SettingsService,
     // Global guards
     { provide: APP_GUARD, useClass: ApiKeyGuard },
