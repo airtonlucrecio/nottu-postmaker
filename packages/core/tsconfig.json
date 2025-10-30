@@ -6,7 +6,10 @@
     "composite": true,
     "declaration": true,
     "declarationMap": true,
-    "noEmit": false
+    "noEmit": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"]

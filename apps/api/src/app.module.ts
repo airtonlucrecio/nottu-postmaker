@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { BullModule } from '@nestjs/bull';
 import { ScheduleModule } from '@nestjs/schedule';
 
 // Existing module and app wiring
@@ -11,11 +10,8 @@ import { HistoryController } from './controllers/history.controller';
 import { SettingsController } from './controllers/settings.controller';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { RateLimitGuard } from './guards/rate-limit.guard';
-import { GenerationService } from './services/generation.service';
-import { OpenAIService } from './services/openai.service';
-import { VisualAIService } from './services/visual-ai.service';
-import { HistoryService } from './services/history.service';
 import { SettingsService } from './services/settings.service';
+import { JsonStorageService } from './services/json-storage.service';
 import { APP_GUARD } from '@nestjs/core';
 
 // Configuration
@@ -41,20 +37,6 @@ import { APP_GUARD } from '@nestjs/core';
       }),
     }),
 
-    // Bull Queue (Redis)
-    BullModule.forRootAsync({
-      useFactory: () => ({
-        // Prefer full URL if provided; fallback to host/port
-        redis: process.env.REDIS_URL
-          ? { url: process.env.REDIS_URL, password: process.env.REDIS_PASSWORD || undefined }
-          : {
-              host: process.env.REDIS_HOST || 'localhost',
-              port: parseInt(process.env.REDIS_PORT || '6379'),
-              password: process.env.REDIS_PASSWORD || undefined,
-            },
-      }),
-    }),
-
     // Scheduler
     ScheduleModule.forRoot(),
 
@@ -64,10 +46,7 @@ import { APP_GUARD } from '@nestjs/core';
   controllers: [GenerateController, HistoryController, SettingsController],
   providers: [
     // Exported/available services for controllers
-    GenerationService,
-    OpenAIService,
-    VisualAIService,
-    HistoryService,
+    JsonStorageService,
     SettingsService,
     // Global guards
     { provide: APP_GUARD, useClass: ApiKeyGuard },

@@ -7,6 +7,9 @@
     "declaration": true,
     "declarationMap": true,
     "noEmit": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
     "paths": {
       "@nottu/core": ["../core/src"],
       "@nottu/core/*": ["../core/src/*"],

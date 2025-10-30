@@ -1,323 +1,195 @@
-import { Queue, Worker, Job } from 'bullmq';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { 
-  PostGenerationJobData, 
-  PostGenerationResult,
-  BatchGenerationJobData,
-  BatchGenerationResult,
-  ImageGenerationJobData,
-  ImageGenerationResult,
-  QueueConfig,
-  JobStatus,
+import { Job, Queue, Worker } from 'bullmq';
+import type { RedisOptions } from 'ioredis';
+import { defaultQueueConfig, queueNames } from './config';
+import {
   JobProgress,
+  JobStatus,
+  PostGenerationHandler,
+  PostGenerationJobData,
+  PostGenerationResult,
+  QueueConfig,
   QueueStats,
-  JobInfo
 } from './types';
-import { defaultQueueConfig, queueNames, QueueName } from './config';
+
+interface JobStatusResponse {
+  id: string;
+  status: JobStatus;
+  progress: JobProgress | number | null;
+  result?: PostGenerationResult;
+  error?: string;
+  timestamps: {
+    createdAt?: number;
+    processedAt?: number | null;
+    finishedAt?: number | null;
+  };
+}
 
 @Injectable()
 export class QueueService implements OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
-  private readonly queues = new Map<QueueName, Queue>();
-  private readonly workers = new Map<QueueName, Worker>();
-  private readonly config: QueueConfig;
+  private readonly queue: Queue<PostGenerationJobData, PostGenerationResult>;
+  private readonly connectionOptions: RedisOptions;
+  private worker?: Worker<PostGenerationJobData, PostGenerationResult>;
 
-  constructor(config?: Partial<QueueConfig>) {
-    this.config = { ...defaultQueueConfig, ...config };
-    this.initializeQueues();
-  }
+  constructor(private readonly config: QueueConfig = defaultQueueConfig) {
+    this.connectionOptions = this.buildConnectionOptions(this.config.redis);
 
-  private initializeQueues(): void {
-    // Initialize Post Generation Queue
-    this.queues.set(queueNames.POST_GENERATION, new Queue(queueNames.POST_GENERATION, {
-      connection: this.config.redis,
-      defaultJobOptions: this.config.defaultJobOptions,
-    }));
-
-    // Initialize Image Generation Queue
-    this.queues.set(queueNames.IMAGE_GENERATION, new Queue(queueNames.IMAGE_GENERATION, {
-      connection: this.config.redis,
-      defaultJobOptions: this.config.defaultJobOptions,
-    }));
-
-    // Initialize Batch Generation Queue
-    this.queues.set(queueNames.BATCH_GENERATION, new Queue(queueNames.BATCH_GENERATION, {
-      connection: this.config.redis,
-      defaultJobOptions: this.config.defaultJobOptions,
-    }));
-
-    this.logger.log('Queues initialized successfully');
-  }
-
-  // Post Generation Methods
-  async addPostGenerationJob(
-    data: PostGenerationJobData,
-    options?: {
-      priority?: number;
-      delay?: number;
-      attempts?: number;
-    }
-  ): Promise<Job<PostGenerationJobData, PostGenerationResult>> {
-    const queue = this.queues.get(queueNames.POST_GENERATION);
-    if (!queue) {
-      throw new Error('Post generation queue not initialized');
-    }
-
-    const job = await queue.add('generate-post', data, {
-      priority: options?.priority || 0,
-      delay: options?.delay || 0,
-      attempts: options?.attempts || this.config.defaultJobOptions.attempts,
-      removeOnComplete: this.config.removeOnComplete,
-      removeOnFail: this.config.removeOnFail,
+    this.queue = new Queue<PostGenerationJobData, PostGenerationResult>(queueNames.POST_GENERATION, {
+      connection: this.cloneConnectionOptions(),
+      defaultJobOptions: {
+        removeOnComplete: this.config.defaultJobOptions?.removeOnComplete ?? 25,
+        removeOnFail: this.config.defaultJobOptions?.removeOnFail ?? 5,
+        attempts: this.config.defaultJobOptions?.attempts ?? 3,
+        backoff: this.config.defaultJobOptions?.backoff ?? { type: 'exponential', delay: 2000 },
+      },
     });
-
-    this.logger.log(`Post generation job added: ${job.id}`);
-    return job;
   }
 
-  async getPostGenerationJob(jobId: string): Promise<Job<PostGenerationJobData, PostGenerationResult> | undefined> {
-    const queue = this.queues.get(queueNames.POST_GENERATION);
-    return queue?.getJob(jobId);
-  }
-
-  // Image Generation Methods
-  async addImageGenerationJob(
-    data: ImageGenerationJobData,
-    options?: {
-      priority?: number;
-      delay?: number;
-      attempts?: number;
-    }
-  ): Promise<Job<ImageGenerationJobData, ImageGenerationResult>> {
-    const queue = this.queues.get(queueNames.IMAGE_GENERATION);
-    if (!queue) {
-      throw new Error('Image generation queue not initialized');
-    }
-
-    const job = await queue.add('generate-image', data, {
-      priority: options?.priority || 0,
-      delay: options?.delay || 0,
-      attempts: options?.attempts || this.config.defaultJobOptions.attempts,
-      removeOnComplete: this.config.removeOnComplete,
-      removeOnFail: this.config.removeOnFail,
+  async addPostGenerationJob(data: PostGenerationJobData): Promise<Job<PostGenerationJobData, PostGenerationResult>> {
+    this.logger.debug(`Enqueuing generation job ${data.jobId}`);
+    return this.queue.add('generate-post', data, {
+      jobId: data.jobId,
+      removeOnComplete: this.config.removeOnComplete ?? 25,
+      removeOnFail: this.config.removeOnFail ?? 5,
+      attempts: this.config.defaultJobOptions?.attempts ?? 3,
+      backoff: this.config.defaultJobOptions?.backoff ?? { type: 'exponential', delay: 2000 },
     });
-
-    this.logger.log(`Image generation job added: ${job.id}`);
-    return job;
   }
 
-  async getImageGenerationJob(jobId: string): Promise<Job<ImageGenerationJobData, ImageGenerationResult> | undefined> {
-    const queue = this.queues.get(queueNames.IMAGE_GENERATION);
-    return queue?.getJob(jobId);
+  async getPostGenerationJob(jobId: string): Promise<Job<PostGenerationJobData, PostGenerationResult> | null> {
+    const job = await this.queue.getJob(jobId);
+    return job ?? null;
   }
 
-  // Batch Generation Methods
-  async addBatchGenerationJob(
-    data: BatchGenerationJobData,
-    options?: {
-      priority?: number;
-      delay?: number;
-      attempts?: number;
-    }
-  ): Promise<Job<BatchGenerationJobData, BatchGenerationResult>> {
-    const queue = this.queues.get(queueNames.BATCH_GENERATION);
-    if (!queue) {
-      throw new Error('Batch generation queue not initialized');
+  async getJobStatus(jobId: string): Promise<JobStatusResponse | null> {
+    const job = await this.getPostGenerationJob(jobId);
+    if (!job) {
+      return null;
     }
 
-    const job = await queue.add('generate-batch', data, {
-      priority: options?.priority || 0,
-      delay: options?.delay || 0,
-      attempts: options?.attempts || this.config.defaultJobOptions.attempts,
-      removeOnComplete: this.config.removeOnComplete,
-      removeOnFail: this.config.removeOnFail,
-    });
+    const state = (await job.getState()) as JobStatus;
+    const progress = (job.progress ?? null) as JobProgress | number | null;
+    const returnValue = (job.returnvalue ?? undefined) as PostGenerationResult | undefined;
 
-    this.logger.log(`Batch generation job added: ${job.id}`);
-    return job;
-  }
-
-  async getBatchGenerationJob(jobId: string): Promise<Job<BatchGenerationJobData, BatchGenerationResult> | undefined> {
-    const queue = this.queues.get(queueNames.BATCH_GENERATION);
-    return queue?.getJob(jobId);
-  }
-
-  // Generic Job Management Methods
-  async getJob(queueName: QueueName, jobId: string): Promise<Job | undefined> {
-    const queue = this.queues.get(queueName);
-    return queue?.getJob(jobId);
-  }
-
-  async getJobStatus(queueName: QueueName, jobId: string): Promise<JobStatus | undefined> {
-    const job = await this.getJob(queueName, jobId);
-    if (!job) return undefined;
-
-    const state = await job.getState();
-    return state as JobStatus;
-  }
-
-  async getJobProgress(queueName: QueueName, jobId: string): Promise<JobProgress | undefined> {
-    const job = await this.getJob(queueName, jobId);
-    if (!job) return undefined;
-
-    return job.progress as JobProgress;
-  }
-
-  async updateJobProgress(queueName: QueueName, jobId: string, progress: JobProgress): Promise<void> {
-    const job = await this.getJob(queueName, jobId);
-    if (job) {
-      await job.updateProgress(progress);
-    }
-  }
-
-  async removeJob(queueName: QueueName, jobId: string): Promise<void> {
-    const job = await this.getJob(queueName, jobId);
-    if (job) {
-      await job.remove();
-      this.logger.log(`Job removed: ${jobId} from queue: ${queueName}`);
-    }
-  }
-
-  async retryJob(queueName: QueueName, jobId: string): Promise<void> {
-    const job = await this.getJob(queueName, jobId);
-    if (job) {
-      await job.retry();
-      this.logger.log(`Job retried: ${jobId} from queue: ${queueName}`);
-    }
-  }
-
-  // Queue Statistics
-  async getQueueStats(queueName: QueueName): Promise<QueueStats> {
-    const queue = this.queues.get(queueName);
-    if (!queue) {
-      throw new Error(`Queue ${queueName} not found`);
-    }
-
-    const counts = await queue.getJobCounts();
     return {
-      waiting: counts.waiting || 0,
-      active: counts.active || 0,
-      completed: counts.completed || 0,
-      failed: counts.failed || 0,
-      delayed: counts.delayed || 0,
-      paused: counts.paused || 0,
+      id: job.id as string,
+      status: state,
+      progress: progress,
+      result: returnValue,
+      error: job.failedReason ?? undefined,
+      timestamps: {
+        createdAt: job.timestamp,
+        processedAt: job.processedOn,
+        finishedAt: job.finishedOn,
+      },
     };
   }
 
-  async getAllQueueStats(): Promise<Record<QueueName, QueueStats>> {
-    const stats: Record<string, QueueStats> = {};
-    
-    for (const queueName of Object.values(queueNames)) {
-      stats[queueName] = await this.getQueueStats(queueName);
+  registerPostGenerationWorker(handler: PostGenerationHandler): void {
+    if (this.worker) {
+      this.logger.warn('Post generation worker already registered.');
+      return;
     }
-    
-    return stats as Record<QueueName, QueueStats>;
-  }
 
-  // Queue Management
-  async pauseQueue(queueName: QueueName): Promise<void> {
-    const queue = this.queues.get(queueName);
-    if (queue) {
-      await queue.pause();
-      this.logger.log(`Queue paused: ${queueName}`);
-    }
-  }
+    this.worker = new Worker<PostGenerationJobData, PostGenerationResult>(
+      queueNames.POST_GENERATION,
+      async (job) => {
+        this.logger.log(`Processing job ${job.id}`);
+        try {
+          const result = await handler({
+            job: job.data,
+            update: async (progress) => {
+              await job.updateProgress(progress);
+            },
+          });
+          return result;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.error(`Handler failed for job ${job.id}: ${message}`);
+          throw error;
+        }
+      },
+      {
+        connection: this.cloneConnectionOptions(),
+        concurrency: this.config.concurrency?.postGeneration ?? 1,
+      },
+    );
 
-  async resumeQueue(queueName: QueueName): Promise<void> {
-    const queue = this.queues.get(queueName);
-    if (queue) {
-      await queue.resume();
-      this.logger.log(`Queue resumed: ${queueName}`);
-    }
-  }
+    this.worker.on('completed', (job) => {
+      this.logger.log(`Job ${job.id} completed.`);
+    });
 
-  async cleanQueue(
-    queueName: QueueName,
-    grace: number = 0,
-    status?: 'completed' | 'failed'
-  ): Promise<void> {
-    const queue = this.queues.get(queueName);
-    if (queue) {
-      if (status) {
-        await queue.clean(grace, 100, status);
-      } else {
-        await queue.clean(grace, 100, 'completed');
-        await queue.clean(grace, 100, 'failed');
+    this.worker.on('failed', (job, err) => {
+      this.logger.error(`Job ${job?.id} failed: ${err.message}`);
+      if (job) {
+        job.log(err.message).catch((logError) => {
+          this.logger.warn(`Failed to log job error for ${job.id}: ${logError instanceof Error ? logError.message : logError}`);
+        });
       }
-      this.logger.log(`Queue cleaned: ${queueName}`);
-    }
-  }
-
-  // Worker Management
-  registerWorker(
-    queueName: QueueName,
-    processor: (job: Job) => Promise<any>,
-    concurrency?: number
-  ): void {
-    const worker = new Worker(queueName, processor, {
-      connection: this.config.redis,
-      concurrency: concurrency || this.getConcurrencyForQueue(queueName),
     });
 
-    worker.on('completed', (job) => {
-      this.logger.log(`Job completed: ${job.id} in queue: ${queueName}`);
+    this.worker.on('error', (err) => {
+      this.logger.error(`Queue worker error: ${err.message}`);
     });
-
-    worker.on('failed', (job, err) => {
-      this.logger.error(`Job failed: ${job?.id} in queue: ${queueName}`, err.stack);
-    });
-
-    worker.on('error', (err) => {
-      this.logger.error(`Worker error in queue: ${queueName}`, err.stack);
-    });
-
-    this.workers.set(queueName, worker);
-    this.logger.log(`Worker registered for queue: ${queueName}`);
   }
 
-  private getConcurrencyForQueue(queueName: QueueName): number {
-    switch (queueName) {
-      case queueNames.POST_GENERATION:
-        return this.config.concurrency.postGeneration;
-      case queueNames.IMAGE_GENERATION:
-        return this.config.concurrency.imageGeneration;
-      case queueNames.BATCH_GENERATION:
-        return this.config.concurrency.batchGeneration;
-      default:
-        return 1;
-    }
+  async getQueueStats(): Promise<QueueStats> {
+    const counts = await this.queue.getJobCounts('waiting', 'active', 'completed', 'failed', 'delayed', 'paused');
+    return {
+      waiting: counts.waiting ?? 0,
+      active: counts.active ?? 0,
+      completed: counts.completed ?? 0,
+      failed: counts.failed ?? 0,
+      delayed: counts.delayed ?? 0,
+      paused: counts.paused ?? 0,
+    };
   }
 
-  // Health Check
-  async isHealthy(): Promise<boolean> {
-    try {
-      for (const queue of this.queues.values()) {
-        // Check if queue is accessible
-        await queue.getWaiting();
-      }
-      return true;
-    } catch (error) {
-      this.logger.error('Queue health check failed', error);
-      return false;
-    }
-  }
-
-  // Cleanup
   async onModuleDestroy(): Promise<void> {
-    this.logger.log('Shutting down queue service...');
-    
-    // Close all workers
-    for (const [queueName, worker] of this.workers) {
-      await worker.close();
-      this.logger.log(`Worker closed: ${queueName}`);
+    this.logger.log('Shutting down queue service');
+    await this.worker?.close();
+    await this.queue.close();
+  }
+
+  private buildConnectionOptions(redisConfig: QueueConfig['redis']): RedisOptions {
+    const options: RedisOptions = {
+      host: redisConfig.host,
+      port: redisConfig.port,
+      username: redisConfig.username,
+      password: redisConfig.password,
+      db: redisConfig.db,
+      tls: redisConfig.tls,
+      maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
+      retryStrategy: redisConfig.retryStrategy,
+    };
+
+    if ((!options.host || !options.port) && redisConfig.url) {
+      try {
+        const parsed = new URL(redisConfig.url);
+        options.host = options.host ?? parsed.hostname;
+        options.port = options.port ?? (parsed.port ? parseInt(parsed.port, 10) : undefined);
+        options.password = options.password ?? parsed.password;
+        options.username = options.username ?? parsed.username;
+        options.db = options.db ?? (parsed.pathname && parsed.pathname !== '/' ? parseInt(parsed.pathname.slice(1), 10) : undefined);
+        if (parsed.protocol === 'rediss:' && !options.tls) {
+          options.tls = { rejectUnauthorized: false };
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to parse redis url: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
 
-    // Close all queues
-    for (const [queueName, queue] of this.queues) {
-      await queue.close();
-      this.logger.log(`Queue closed: ${queueName}`);
-    }
+    return options;
+  }
 
-    this.logger.log('Queue service shutdown complete');
+  private cloneConnectionOptions(): RedisOptions {
+    const { tls, ...rest } = this.connectionOptions;
+    return {
+      ...rest,
+      tls: tls ? { ...tls } : undefined,
+    };
   }
 }
+
+export type { JobStatusResponse };

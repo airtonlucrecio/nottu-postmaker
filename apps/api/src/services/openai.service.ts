@@ -31,7 +31,7 @@ export class OpenAIService {
   constructor(private configService: ConfigService) {
     this.config = {
       apiKey: this.configService.get<string>('OPENAI_API_KEY') || '',
-      model: this.configService.get<string>('OPENAI_MODEL') || 'gpt-4-turbo-preview',
+      model: this.configService.get<string>('OPENAI_MODEL') || 'gpt-5',
       temperature: parseFloat(this.configService.get<string>('OPENAI_TEMPERATURE') || '0.7'),
       maxTokens: parseInt(this.configService.get<string>('OPENAI_MAX_TOKENS') || '2000'),
       organization: this.configService.get<string>('OPENAI_ORGANIZATION'),

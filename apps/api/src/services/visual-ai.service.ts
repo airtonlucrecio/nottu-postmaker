@@ -50,9 +50,14 @@ export class VisualAIService {
   private config: VisualAIConfig;
 
   constructor(private configService: ConfigService) {
+    const dalleApiKey =
+      this.configService.get<string>('DALLE_API_KEY') ||
+      this.configService.get<string>('OPENAI_API_KEY') ||
+      '';
+
     this.config = {
       dalle: {
-        apiKey: this.configService.get<string>('OPENAI_API_KEY') || '',
+        apiKey: dalleApiKey,
         model: this.configService.get<string>('DALLE_MODEL') || 'dall-e-3',
         quality: (this.configService.get<string>('DALLE_QUALITY') as 'standard' | 'hd') || 'standard',
         style: (this.configService.get<string>('DALLE_STYLE') as 'vivid' | 'natural') || 'vivid',
@@ -75,9 +80,9 @@ export class VisualAIService {
     };
 
     // Initialize OpenAI for DALL-E if API key is available
-    if (this.config.dalle?.apiKey) {
+    if (dalleApiKey) {
       this.openai = new OpenAI({
-        apiKey: this.config.dalle.apiKey,
+        apiKey: dalleApiKey,
       });
     }
   }
