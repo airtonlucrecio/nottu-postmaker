@@ -104,6 +104,8 @@ storage/*
 !storage/settings.json
 C:/NottuPosts/
 temp/
+output/*
+!output/.gitkeep
 
 # Husky
 .husky/_

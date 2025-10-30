@@ -6,7 +6,14 @@ import * as path from 'path';
 
 export interface PersistedAssets {
   folder: string;
+  folderFs: string;
   assets: {
+    finalPath: string;
+    captionPath: string;
+    hashtagsPath: string;
+    metadataPath: string;
+  };
+  fsAssets: {
     finalPath: string;
     captionPath: string;
     hashtagsPath: string;
@@ -23,6 +30,8 @@ interface PersistOptions {
   provider: {
     text: string;
     image?: string;
+    requestedImage?: string;
+    effectiveImage?: string;
   };
   imageUrl?: string;
   composition: {
@@ -35,20 +44,31 @@ interface PersistOptions {
     renderTime: number;
   };
   requestedAt: Date;
+  startedAt: Date;
 }
 
 @Injectable()
 export class DiskStorageService {
   private readonly logger = new Logger(DiskStorageService.name);
-  private readonly outputBase: string;
+  private readonly outputBaseFs: string;
+  private readonly outputBaseDisplay: string;
+  private readonly outputBaseResolved: string;
+  private readonly displayIsWindows: boolean;
+  private readonly displayBaseNormalized: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.outputBase = this.configService.get<string>('OUTPUT_PATH') || 'C:/NottuPosts';
+    this.outputBaseFs = this.configService.get<string>('OUTPUT_PATH') || 'C:/NottuPosts';
+    this.outputBaseDisplay = this.configService.get<string>('OUTPUT_WINDOWS_PATH') || this.outputBaseFs;
+    this.outputBaseResolved = path.resolve(this.outputBaseFs);
+    this.displayIsWindows = /^[a-zA-Z]:/.test(this.outputBaseDisplay) || this.outputBaseDisplay.includes('\\');
+    this.displayBaseNormalized = this.displayIsWindows
+      ? path.win32.normalize(this.outputBaseDisplay)
+      : path.posix.normalize(this.outputBaseDisplay.replace(/\\/g, '/'));
   }
 
   async persist(options: PersistOptions): Promise<PersistedAssets> {
     const dateSegment = format(options.requestedAt, 'yyyy-MM-dd');
-    const folderFs = path.resolve(this.outputBase, dateSegment, options.jobId);
+    const folderFs = path.resolve(this.outputBaseResolved, dateSegment, options.jobId);
     await fs.mkdir(folderFs, { recursive: true });
 
     const finalFileName = `final.${options.composition.format}`;
@@ -66,20 +86,54 @@ export class DiskStorageService {
     await fs.writeFile(hashtagsFsPath, options.hashtags.join('\n'), 'utf-8');
 
     const completedAt = new Date();
+    const folderDisplayPath = this.toDisplayPath(folderFs);
+    const finalDisplayPath = this.toDisplayPath(finalFsPath);
+    const captionDisplayPath = this.toDisplayPath(captionFsPath);
+    const hashtagsDisplayPath = this.toDisplayPath(hashtagsFsPath);
+    const metadataDisplayPath = this.toDisplayPath(metadataFsPath);
+
+    const requestedImage = options.provider.requestedImage;
+    const effectiveImage =
+      options.provider.effectiveImage ||
+      options.provider.image ||
+      requestedImage;
+
+    const providerMetadata = {
+      text: options.provider.text,
+      requestedImage,
+      effectiveImage,
+      image: effectiveImage,
+      fallbackApplied:
+        !!(
+          requestedImage &&
+          effectiveImage &&
+          requestedImage !== effectiveImage
+        ),
+    };
+
     const metadata = {
       jobId: options.jobId,
       topic: options.topic,
       caption: options.caption,
       hashtags: options.hashtags,
-      provider: options.provider,
+      provider: providerMetadata,
       imageUrl: options.imageUrl,
       requestedAt: options.requestedAt.toISOString(),
+      startedAt: options.startedAt.toISOString(),
       completedAt: completedAt.toISOString(),
       output: {
-        folder: this.toWindowsPath(folderFs),
-        finalPath: this.toWindowsPath(finalFsPath),
-        captionPath: this.toWindowsPath(captionFsPath),
-        hashtagsPath: this.toWindowsPath(hashtagsFsPath),
+        folder: folderDisplayPath,
+        finalPath: finalDisplayPath,
+        captionPath: captionDisplayPath,
+        hashtagsPath: hashtagsDisplayPath,
+        metadataPath: metadataDisplayPath,
+        fs: {
+          folder: folderFs,
+          finalPath: finalFsPath,
+          captionPath: captionFsPath,
+          hashtagsPath: hashtagsFsPath,
+          metadataPath: metadataFsPath,
+        },
       },
       render: {
         width: options.composition.width,
@@ -96,23 +150,36 @@ export class DiskStorageService {
     this.logger.debug(`Assets persisted for job ${options.jobId} at ${folderFs}`);
 
     return {
-      folder: this.toWindowsPath(folderFs),
+      folder: folderDisplayPath,
+      folderFs,
       assets: {
-        finalPath: this.toWindowsPath(finalFsPath),
-        captionPath: this.toWindowsPath(captionFsPath),
-        hashtagsPath: this.toWindowsPath(hashtagsFsPath),
-        metadataPath: this.toWindowsPath(metadataFsPath),
+        finalPath: finalDisplayPath,
+        captionPath: captionDisplayPath,
+        hashtagsPath: hashtagsDisplayPath,
+        metadataPath: metadataDisplayPath,
+      },
+      fsAssets: {
+        finalPath: finalFsPath,
+        captionPath: captionFsPath,
+        hashtagsPath: hashtagsFsPath,
+        metadataPath: metadataFsPath,
       },
       metadata,
     };
   }
 
-  private toWindowsPath(fsPath: string): string {
-    const baseFs = path.resolve(this.outputBase);
-    const relative = path.relative(baseFs, path.resolve(fsPath));
+  private toDisplayPath(fsPath: string): string {
+    const relative = path.relative(this.outputBaseResolved, path.resolve(fsPath));
     if (!relative || relative === '') {
-      return path.win32.normalize(this.outputBase);
+      return this.displayBaseNormalized;
     }
-    return path.win32.join(this.outputBase, relative.split(path.sep).join(path.win32.sep));
+
+    const segments = relative.split(path.sep).filter(Boolean);
+
+    if (this.displayIsWindows) {
+      return path.win32.join(this.displayBaseNormalized, ...segments);
+    }
+
+    return path.posix.join(this.displayBaseNormalized, ...segments);
   }
 }

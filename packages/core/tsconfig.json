@@ -7,10 +7,9 @@
     "declaration": true,
     "declarationMap": true,
     "noEmit": false,
-    "suppressExcessPropertyErrors": true,
-    "suppressImplicitAnyIndexErrors": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"]

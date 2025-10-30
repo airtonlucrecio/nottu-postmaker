@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Job, Queue, Worker } from 'bullmq';
+import type { RedisOptions } from 'ioredis';
 import { defaultQueueConfig, queueNames } from './config';
-import type {
+import {
   JobProgress,
   JobStatus,
   PostGenerationHandler,
@@ -24,21 +25,31 @@ interface JobStatusResponse {
   };
 }
 
+interface JobStatusResponse {
+  id: string;
+  status: JobStatus;
+  progress: JobProgress | number | null;
+  result?: PostGenerationResult;
+  error?: string;
+  timestamps: {
+    createdAt?: number;
+    processedAt?: number | null;
+    finishedAt?: number | null;
+  };
+}
+
 @Injectable()
 export class QueueService implements OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
   private readonly queue: Queue<PostGenerationJobData, PostGenerationResult>;
+  private readonly connectionOptions: RedisOptions;
   private worker?: Worker<PostGenerationJobData, PostGenerationResult>;
 
   constructor(private readonly config: QueueConfig = defaultQueueConfig) {
+    this.connectionOptions = this.buildConnectionOptions(this.config.redis);
+
     this.queue = new Queue<PostGenerationJobData, PostGenerationResult>(queueNames.POST_GENERATION, {
-      connection: {
-        host: this.config.redis.host,
-        port: this.config.redis.port,
-        password: this.config.redis.password,
-        db: this.config.redis.db,
-        maxRetriesPerRequest: this.config.redis.maxRetriesPerRequest,
-      },
+      connection: this.cloneConnectionOptions(),
       defaultJobOptions: {
         removeOnComplete: this.config.defaultJobOptions?.removeOnComplete ?? 25,
         removeOnFail: this.config.defaultJobOptions?.removeOnFail ?? 5,
@@ -59,8 +70,9 @@ export class QueueService implements OnModuleDestroy {
     });
   }
 
-  async getPostGenerationJob(jobId: string): Promise<Job<PostGenerationJobData, PostGenerationResult> | undefined> {
-    return this.queue.getJob(jobId);
+  async getPostGenerationJob(jobId: string): Promise<Job<PostGenerationJobData, PostGenerationResult> | null> {
+    const job = await this.queue.getJob(jobId);
+    return job ?? null;
   }
 
   async getJobStatus(jobId: string): Promise<JobStatusResponse | null> {
@@ -70,8 +82,8 @@ export class QueueService implements OnModuleDestroy {
     }
 
     const state = (await job.getState()) as JobStatus;
-    const progress = job.progress as JobProgress | number | null;
-    const returnValue = job.returnvalue as PostGenerationResult | undefined;
+    const progress = (job.progress ?? null) as JobProgress | number | null;
+    const returnValue = (job.returnvalue ?? undefined) as PostGenerationResult | undefined;
 
     return {
       id: job.id as string,
@@ -97,21 +109,22 @@ export class QueueService implements OnModuleDestroy {
       queueNames.POST_GENERATION,
       async (job) => {
         this.logger.log(`Processing job ${job.id}`);
-        const result = await handler({
-          job: job.data,
-          update: async (progress) => {
-            await job.updateProgress(progress);
-          },
-        });
-        return result;
+        try {
+          const result = await handler({
+            job: job.data,
+            update: async (progress) => {
+              await job.updateProgress(progress);
+            },
+          });
+          return result;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.error(`Handler failed for job ${job.id}: ${message}`);
+          throw error;
+        }
       },
       {
-        connection: {
-          host: this.config.redis.host,
-          port: this.config.redis.port,
-          password: this.config.redis.password,
-          db: this.config.redis.db,
-        },
+        connection: this.cloneConnectionOptions(),
         concurrency: this.config.concurrency?.postGeneration ?? 1,
       },
     );
@@ -122,6 +135,15 @@ export class QueueService implements OnModuleDestroy {
 
     this.worker.on('failed', (job, err) => {
       this.logger.error(`Job ${job?.id} failed: ${err.message}`);
+      if (job) {
+        job.log(err.message).catch((logError) => {
+          this.logger.warn(`Failed to log job error for ${job.id}: ${logError instanceof Error ? logError.message : logError}`);
+        });
+      }
+    });
+
+    this.worker.on('error', (err) => {
+      this.logger.error(`Queue worker error: ${err.message}`);
     });
   }
 
@@ -141,6 +163,45 @@ export class QueueService implements OnModuleDestroy {
     this.logger.log('Shutting down queue service');
     await this.worker?.close();
     await this.queue.close();
+  }
+
+  private buildConnectionOptions(redisConfig: QueueConfig['redis']): RedisOptions {
+    const options: RedisOptions = {
+      host: redisConfig.host,
+      port: redisConfig.port,
+      username: redisConfig.username,
+      password: redisConfig.password,
+      db: redisConfig.db,
+      tls: redisConfig.tls,
+      maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
+      retryStrategy: redisConfig.retryStrategy,
+    };
+
+    if ((!options.host || !options.port) && redisConfig.url) {
+      try {
+        const parsed = new URL(redisConfig.url);
+        options.host = options.host ?? parsed.hostname;
+        options.port = options.port ?? (parsed.port ? parseInt(parsed.port, 10) : undefined);
+        options.password = options.password ?? parsed.password;
+        options.username = options.username ?? parsed.username;
+        options.db = options.db ?? (parsed.pathname && parsed.pathname !== '/' ? parseInt(parsed.pathname.slice(1), 10) : undefined);
+        if (parsed.protocol === 'rediss:' && !options.tls) {
+          options.tls = { rejectUnauthorized: false };
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to parse redis url: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    return options;
+  }
+
+  private cloneConnectionOptions(): RedisOptions {
+    const { tls, ...rest } = this.connectionOptions;
+    return {
+      ...rest,
+      tls: tls ? { ...tls } : undefined,
+    };
   }
 }
 

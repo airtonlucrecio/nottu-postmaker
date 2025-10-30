@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { BullModule } from '@nestjs/bull';
 import { ScheduleModule } from '@nestjs/schedule';
 
 // Existing module and app wiring
@@ -35,20 +34,6 @@ import { APP_GUARD } from '@nestjs/core';
             limit: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
           },
         ],
-      }),
-    }),
-
-    // Bull Queue (Redis)
-    BullModule.forRootAsync({
-      useFactory: () => ({
-        // Prefer full URL if provided; fallback to host/port
-        redis: process.env.REDIS_URL
-          ? { url: process.env.REDIS_URL, password: process.env.REDIS_PASSWORD || undefined }
-          : {
-              host: process.env.REDIS_HOST || 'localhost',
-              port: parseInt(process.env.REDIS_PORT || '6379'),
-              password: process.env.REDIS_PASSWORD || undefined,
-            },
       }),
     }),
 

@@ -1,7 +1,12 @@
 export interface PostGenerationJobData {
   jobId: string;
   topic: string;
+  jobId: string;
+  topic: string;
   userId?: string;
+  includeImage: boolean;
+  imageProvider: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+  requestedAt: string;
   includeImage: boolean;
   imageProvider: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
   requestedAt: string;
@@ -13,7 +18,14 @@ export interface PostGenerationResult {
   caption?: string;
   hashtags?: string[];
   folder?: string;
+  folderFs?: string;
   assets?: {
+    finalPath: string;
+    captionPath: string;
+    hashtagsPath: string;
+    metadataPath: string;
+  };
+  fsAssets?: {
     finalPath: string;
     captionPath: string;
     hashtagsPath: string;
@@ -50,12 +62,18 @@ export interface QueueStats {
 
 export interface QueueConfig {
   redis: {
-    host: string;
-    port: number;
+    host?: string;
+    port?: number;
+    username?: string;
     password?: string;
     db?: number;
+    url?: string;
+    tls?: {
+      rejectUnauthorized?: boolean;
+    };
     maxRetriesPerRequest?: number;
     retryDelayOnFailover?: number;
+    retryStrategy?: (times: number) => number | null | undefined;
   };
   concurrency?: {
     postGeneration?: number;
