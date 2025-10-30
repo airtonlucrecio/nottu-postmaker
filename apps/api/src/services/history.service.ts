@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { JsonStorageService } from './json-storage.service';
+import { Injectable } from '@nestjs/common';
+import { JsonStorageService } from './json-storage.service';
 
+export interface HistoryEntry {
 export interface HistoryEntry {
   id: string;
   topic: string;
@@ -42,5 +45,18 @@ export class HistoryService {
     const history = await this.list();
     history.push(entry);
     await this.storage.write(this.fileName, history);
+  private readonly fileName = 'history.json';
+
+  constructor(private readonly storage: JsonStorageService) {}
+
+  async list(): Promise<HistoryEntry[]> {
+    return this.storage.read<HistoryEntry[]>(this.fileName, []);
+  }
+
+  async append(entry: HistoryEntry): Promise<void> {
+    const history = await this.list();
+    history.push(entry);
+    await this.storage.write(this.fileName, history);
   }
 }
+

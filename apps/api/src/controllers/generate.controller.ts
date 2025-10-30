@@ -9,8 +9,17 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuid } from 'uuid';
+import { ConfigService } from '@nestjs/config';
+import { v4 as uuid } from 'uuid';
 import { QueueService } from '@nottu/queue';
 
+interface GenerateRequest {
+  topic: string;
+  includeImage?: boolean;
+  imageProvider?: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+}
+
+@Controller('generate')
 interface GenerateRequest {
   topic: string;
   includeImage?: boolean;
@@ -21,6 +30,7 @@ interface GenerateRequest {
 export class GenerateController {
   constructor(
     private readonly queueService: QueueService,
+    private readonly configService: ConfigService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -77,3 +87,4 @@ export class GenerateController {
     };
   }
 }
+

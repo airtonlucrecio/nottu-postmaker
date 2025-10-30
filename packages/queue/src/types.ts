@@ -1,7 +1,12 @@
 export interface PostGenerationJobData {
   jobId: string;
   topic: string;
+  jobId: string;
+  topic: string;
   userId?: string;
+  includeImage: boolean;
+  imageProvider: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+  requestedAt: string;
   includeImage: boolean;
   imageProvider: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
   requestedAt: string;

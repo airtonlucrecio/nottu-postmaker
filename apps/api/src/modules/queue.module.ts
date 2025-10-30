@@ -6,6 +6,8 @@ import { OpenAIService } from '../services/openai.service';
 import { VisualAIService } from '../services/visual-ai.service';
 import { DiskStorageService } from '../services/disk-storage.service';
 import { JsonStorageService } from '../services/json-storage.service';
+import { DiskStorageService } from '../services/disk-storage.service';
+import { JsonStorageService } from '../services/json-storage.service';
 import { HistoryService } from '../services/history.service';
 
 function buildQueueConfig(configService: ConfigService): QueueConfig {
@@ -77,6 +79,7 @@ function buildQueueConfig(configService: ConfigService): QueueConfig {
     {
       provide: QueueService,
       inject: [ConfigService],
+      inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const queueConfig = buildQueueConfig(configService);
         return new QueueService(queueConfig);
@@ -86,6 +89,7 @@ function buildQueueConfig(configService: ConfigService): QueueConfig {
     DiskStorageService,
     OpenAIService,
     VisualAIService,
+    GenerationService,
     GenerationService,
     HistoryService,
     {
@@ -99,10 +103,23 @@ function buildQueueConfig(configService: ConfigService): QueueConfig {
       useFactory: (queueService: QueueService, processor: PostGenerationProcessor) => {
         queueService.registerPostGenerationWorker((context) => processor.handle(context));
         return true;
+      provide: PostGenerationProcessor,
+      useFactory: (generationService: GenerationService) =>
+        new PostGenerationProcessor(({ job, update }) => generationService.processJob(job, update)),
+      inject: [GenerationService],
+    },
+    {
+      provide: 'QUEUE_WORKER',
+      useFactory: (queueService: QueueService, processor: PostGenerationProcessor) => {
+        queueService.registerPostGenerationWorker((context) => processor.handle(context));
+        return true;
       },
+      inject: [QueueService, PostGenerationProcessor],
       inject: [QueueService, PostGenerationProcessor],
     },
   ],
   exports: [QueueService, GenerationService, HistoryService],
+  exports: [QueueService, GenerationService, HistoryService],
 })
 export class QueueModule {}
+

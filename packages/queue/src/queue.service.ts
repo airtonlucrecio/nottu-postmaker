@@ -25,6 +25,19 @@ interface JobStatusResponse {
   };
 }
 
+interface JobStatusResponse {
+  id: string;
+  status: JobStatus;
+  progress: JobProgress | number | null;
+  result?: PostGenerationResult;
+  error?: string;
+  timestamps: {
+    createdAt?: number;
+    processedAt?: number | null;
+    finishedAt?: number | null;
+  };
+}
+
 @Injectable()
 export class QueueService implements OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);

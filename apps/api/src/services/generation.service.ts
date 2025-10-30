@@ -1,5 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PostComposer } from '@nottu/render';
+import {
+  JobProgress,
+  PostGenerationJobData,
+  PostGenerationResult,
+} from '@nottu/queue';
+import { GeneratePostDto } from '@nottu/core';
+import { OpenAIService } from './openai.service';
+import { VisualAIService } from './visual-ai.service';
+import { DiskStorageService } from './disk-storage.service';
+import { HistoryService } from './history.service';
 import { PostComposer } from '@nottu/render';
 import {
   JobProgress,
@@ -18,8 +30,17 @@ export class GenerationService {
   private readonly imageProviderDefault: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
   private readonly composer = new PostComposer();
   private composerReady = false;
+  private readonly logger = new Logger(GenerationService.name);
+  private readonly imageProviderDefault: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+  private readonly composer = new PostComposer();
+  private composerReady = false;
 
   constructor(
+    private readonly configService: ConfigService,
+    private readonly openaiService: OpenAIService,
+    private readonly visualAiService: VisualAIService,
+    private readonly diskStorageService: DiskStorageService,
+    private readonly historyService: HistoryService,
     private readonly configService: ConfigService,
     private readonly openaiService: OpenAIService,
     private readonly visualAiService: VisualAIService,
@@ -175,7 +196,54 @@ export class GenerationService {
     if (!this.composerReady) {
       await this.composer.initialize();
       this.composerReady = true;
+      dataUrl,
+      originalUrl: image.imageUrl,
+    };
+  }
+
+  private async composePost(
+    caption: string,
+    hashtags: string[],
+    imageUrl: string | undefined,
+    update: (progress: JobProgress) => Promise<void>,
+  ): Promise<{ buffer: Buffer; format: string; width: number; height: number; engine: string; size: number; renderTime: number }> {
+    await update({ step: 'render', percentage: 75, message: 'Renderizando arte final' });
+
+    if (!this.composerReady) {
+      await this.composer.initialize();
+      this.composerReady = true;
     }
+
+    const composerResult = await this.composer.compose(
+      {
+        caption,
+        hashtags,
+      } as any,
+      imageUrl || 'https://dummyimage.com/1080x1080/1e1b4b/ffffff.png&text=Nottu',
+      {
+        logoPosition: 'bottom-right',
+        textOverlay: true,
+      } as any,
+      {
+        engine: 'satori',
+        width: 1080,
+        height: 1080,
+        quality: 90,
+        format: 'png',
+      },
+    );
+
+    return {
+      buffer: composerResult.buffer,
+      format: composerResult.metadata.format,
+      width: composerResult.metadata.width,
+      height: composerResult.metadata.height,
+      engine: composerResult.metadata.engine,
+      size: composerResult.metadata.size,
+      renderTime: composerResult.metadata.renderTime,
+    };
+  }
+}
 
     const composerResult = await this.composer.compose(
       {
