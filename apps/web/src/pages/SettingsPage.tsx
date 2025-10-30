@@ -22,9 +22,9 @@ export function SettingsPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [settings, setSettings] = useState({
     profile: {
-      name: 'João Silva',
-      email: 'joao@exemplo.com',
-      bio: 'Criador de conteúdo apaixonado por tecnologia'
+      name: 'Airton Lucrécio',
+      email: 'contato@nottu.com',
+      bio: 'Criador e apaixonado por tecnologia'
     },
     preferences: {
       language: 'pt',

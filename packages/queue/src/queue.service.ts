@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Job, Queue, Worker } from 'bullmq';
 import { defaultQueueConfig, queueNames } from './config';
-import {
+import type {
   JobProgress,
   JobStatus,
   PostGenerationHandler,
@@ -70,8 +70,8 @@ export class QueueService implements OnModuleDestroy {
     }
 
     const state = (await job.getState()) as JobStatus;
-    const progress = (await job.getProgress()) as JobProgress | number | null;
-    const returnValue = (await job.getReturnValue()) as PostGenerationResult | undefined;
+    const progress = job.progress as JobProgress | number | null;
+    const returnValue = job.returnvalue as PostGenerationResult | undefined;
 
     return {
       id: job.id as string,
