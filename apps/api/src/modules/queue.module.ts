@@ -6,8 +6,6 @@ import { OpenAIService } from '../services/openai.service';
 import { VisualAIService } from '../services/visual-ai.service';
 import { DiskStorageService } from '../services/disk-storage.service';
 import { JsonStorageService } from '../services/json-storage.service';
-import { DiskStorageService } from '../services/disk-storage.service';
-import { JsonStorageService } from '../services/json-storage.service';
 import { HistoryService } from '../services/history.service';
 
 function buildQueueConfig(configService: ConfigService): QueueConfig {
@@ -79,18 +77,52 @@ function buildQueueConfig(configService: ConfigService): QueueConfig {
     {
       provide: QueueService,
       inject: [ConfigService],
-      inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const queueConfig = buildQueueConfig(configService);
         return new QueueService(queueConfig);
       },
     },
     JsonStorageService,
-    DiskStorageService,
-    OpenAIService,
-    VisualAIService,
-    GenerationService,
-    GenerationService,
+    {
+      provide: DiskStorageService,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        return new DiskStorageService(configService);
+      },
+    },
+    {
+      provide: OpenAIService,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        return new OpenAIService(configService);
+      },
+    },
+    {
+      provide: VisualAIService,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        return new VisualAIService(configService);
+      },
+    },
+    {
+      provide: GenerationService,
+      inject: [ConfigService, OpenAIService, VisualAIService, DiskStorageService, HistoryService],
+      useFactory: (
+        configService: ConfigService,
+        openaiService: OpenAIService,
+        visualAiService: VisualAIService,
+        diskStorageService: DiskStorageService,
+        historyService: HistoryService,
+      ) => {
+        return new GenerationService(
+          configService,
+          openaiService,
+          visualAiService,
+          diskStorageService,
+          historyService,
+        );
+      },
+    },
     HistoryService,
     {
       provide: PostGenerationProcessor,
@@ -103,22 +135,10 @@ function buildQueueConfig(configService: ConfigService): QueueConfig {
       useFactory: (queueService: QueueService, processor: PostGenerationProcessor) => {
         queueService.registerPostGenerationWorker((context) => processor.handle(context));
         return true;
-      provide: PostGenerationProcessor,
-      useFactory: (generationService: GenerationService) =>
-        new PostGenerationProcessor(({ job, update }) => generationService.processJob(job, update)),
-      inject: [GenerationService],
-    },
-    {
-      provide: 'QUEUE_WORKER',
-      useFactory: (queueService: QueueService, processor: PostGenerationProcessor) => {
-        queueService.registerPostGenerationWorker((context) => processor.handle(context));
-        return true;
       },
-      inject: [QueueService, PostGenerationProcessor],
       inject: [QueueService, PostGenerationProcessor],
     },
   ],
-  exports: [QueueService, GenerationService, HistoryService],
   exports: [QueueService, GenerationService, HistoryService],
 })
 export class QueueModule {}

@@ -31,24 +31,28 @@ async function bootstrap() {
 
   // CORS configuration
   app.enableCors({
-    origin: corsOrigin,
+    origin: [corsOrigin, 'http://localhost:5173', 'http://localhost:5174'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
 
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('Nottu PostMaker API')
-    .setDescription('API para geração de criativos com IA - Nottu Tech')
-    .setVersion('1.0')
-    .addTag('posts', 'Operações relacionadas aos posts')
-    .addTag('ai', 'Integração com serviços de IA')
-    .addTag('health', 'Health checks e status')
-    .build();
+  // Swagger documentation (guarded to avoid startup failures)
+  try {
+    const config = new DocumentBuilder()
+      .setTitle('Nottu PostMaker API')
+      .setDescription('API para geração de criativos com IA - Nottu Tech')
+      .setVersion('1.0')
+      .addTag('posts', 'Operações relacionadas aos posts')
+      .addTag('ai', 'Integração com serviços de IA')
+      .addTag('health', 'Health checks e status')
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  } catch (err) {
+    logger.warn(`Swagger setup skipped: ${(err instanceof Error ? err.message : String(err))}`);
+  }
 
   // Global prefix
   app.setGlobalPrefix('api');

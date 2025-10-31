@@ -1,18 +1,22 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_GUARD } from '@nestjs/core';
 
-// Existing module and app wiring
-import { QueueModule } from './modules/queue.module';
+// Controllers
 import { GenerateController } from './controllers/generate.controller';
 import { HistoryController } from './controllers/history.controller';
 import { SettingsController } from './controllers/settings.controller';
+
+// Guards
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { RateLimitGuard } from './guards/rate-limit.guard';
+
+// Services
+import { HistoryService } from './services/history.service';
 import { SettingsService } from './services/settings.service';
-import { JsonStorageService } from './services/json-storage.service';
-import { APP_GUARD } from '@nestjs/core';
+import { LocalQueueService } from './services/local-queue.service';
 
 // Configuration
 // Removed custom configuration imports (files não existem no projeto)
@@ -40,17 +44,25 @@ import { APP_GUARD } from '@nestjs/core';
     // Scheduler
     ScheduleModule.forRoot(),
 
-    // Application modules
-    QueueModule,
   ],
   controllers: [GenerateController, HistoryController, SettingsController],
   providers: [
-    // Exported/available services for controllers
-    JsonStorageService,
+    // Services
+    HistoryService,
     SettingsService,
+    LocalQueueService,
+    
     // Global guards
-    { provide: APP_GUARD, useClass: ApiKeyGuard },
-    { provide: APP_GUARD, useClass: RateLimitGuard },
+    {
+      provide: APP_GUARD,
+      useFactory: (configService: ConfigService) => new ApiKeyGuard(configService),
+      inject: [ConfigService],
+    },
+    {
+      provide: APP_GUARD,
+      useFactory: (configService: ConfigService) => new RateLimitGuard(configService),
+      inject: [ConfigService],
+    },
   ],
 })
 export class AppModule {}

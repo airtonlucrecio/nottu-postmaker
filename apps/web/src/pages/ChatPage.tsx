@@ -8,9 +8,10 @@ import {
   Paperclip
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '../utils/cn';
 import { ChatMessage } from '../components/Chat/ChatMessage';
-import { usePostGeneration } from '../hooks/usePostGeneration';
+import { apiService } from '../services/api';
 
 interface Message {
   id: string;
@@ -22,9 +23,9 @@ interface Message {
 export function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const { generatePost, isLoading } = usePostGeneration();
+  const navigate = useNavigate();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,7 +37,7 @@ export function ChatPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -46,28 +47,41 @@ export function ChatPage() {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const topic = inputValue;
     setInputValue('');
 
     try {
-      await generatePost({
-        topic: inputValue,
-        provider: 'OPENAI',
-        settings: {
-          tone: 'modern',
-          includeImage: false,
-          language: 'pt'
-        }
+      setIsLoading(true);
+      
+      // Generate post via API
+      const response = await apiService.generatePost({
+        topic,
+        includeImage: true,
+        imageProvider: 'dalle'
       });
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: 'Post gerado com sucesso! Você pode visualizá-lo na aba Preview.',
-        type: 'assistant',
-        timestamp: new Date()
-      };
+      if (response.jobId) {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: `Post sendo gerado! 🚀 Acompanhe o progresso na página de preview.`,
+          type: 'assistant',
+          timestamp: new Date()
+        };
 
-      setMessages(prev => [...prev, assistantMessage]);
+        setMessages(prev => [...prev, assistantMessage]);
+        
+        // Navigate to preview page
+        setTimeout(() => {
+          navigate(`/preview/${response.jobId}`);
+        }, 1500);
+        
+        toast.success('Post iniciado com sucesso!');
+      } else {
+        throw new Error('Resposta inválida da API');
+      }
     } catch (error) {
+      console.error('Erro ao gerar post:', error);
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: 'Desculpe, ocorreu um erro ao gerar o post. Tente novamente.',
@@ -77,6 +91,8 @@ export function ChatPage() {
 
       setMessages(prev => [...prev, errorMessage]);
       toast.error('Erro ao gerar post');
+    } finally {
+      setIsLoading(false);
     }
   };
 

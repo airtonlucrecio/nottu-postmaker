@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   User,
   Bell,
@@ -9,6 +9,8 @@ import {
   EyeOff
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { apiService } from '../services/api';
+import { toast } from 'sonner';
 
 interface SettingsSection {
   id: string;
@@ -31,7 +33,12 @@ export function SettingsPage() {
       theme: 'dark',
       defaultTone: 'casual',
       includeHashtags: true,
-      includeEmojis: true
+      includeEmojis: true,
+      primaryColor: '#4E3FE2',
+      secondaryColor: '#0A0A0F',
+      accentColor: '#8B5CF6',
+      headingFont: 'Inter',
+      bodyFont: 'Inter'
     },
     notifications: {
       emailNotifications: true,
@@ -39,13 +46,45 @@ export function SettingsPage() {
       weeklyReport: true
     },
     api: {
-      apiKey: 'sk-1234567890abcdef...',
+      apiKey: 'dev-api-key-nottu-2024',
       usage: {
         current: 150,
         limit: 1000
       }
     }
   });
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const apiSettings = await apiService.getSettings();
+      
+      // Merge API settings with local state
+      setSettings(prev => ({
+        ...prev,
+        preferences: {
+          ...prev.preferences,
+          ...apiSettings.colors && {
+            primaryColor: apiSettings.colors.primary,
+            secondaryColor: apiSettings.colors.secondary,
+            accentColor: apiSettings.colors.accent
+          },
+          ...apiSettings.fonts && {
+            headingFont: apiSettings.fonts.heading,
+            bodyFont: apiSettings.fonts.body
+          }
+        }
+      }));
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+      toast.error('Erro ao carregar configurações');
+    }
+  };
+
+
 
   const sections: SettingsSection[] = [
     {

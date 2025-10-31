@@ -8,34 +8,11 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { PostPreview } from '../components/Post/PostPreview';
-import { usePostGeneration } from '../hooks/usePostGeneration';
-
-interface JobStatus {
-  jobId: string;
-  status: 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused';
-  progress?: {
-    percentage: number;
-    message?: string;
-  };
-  result?: {
-    caption?: string;
-    hashtags?: string[];
-    assets?: {
-      finalPath: string;
-      captionPath: string;
-      hashtagsPath: string;
-      metadataPath: string;
-    };
-    folder?: string;
-    metadata?: Record<string, any>;
-  };
-  error?: string;
-}
+import { apiService, type JobStatus } from '../services/api';
 
 export function PreviewPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { checkJobStatus, pollJobStatus } = usePostGeneration();
   
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,21 +27,15 @@ export function PreviewPage() {
 
     const loadJobStatus = async () => {
       try {
-        setIsLoading(true);
-        
-        // Primeiro, verificar o status atual
-        const status = await checkJobStatus(jobId);
-        if (!status) {
-          setError('Job não encontrado');
-          return;
-        }
-
+        const status = await apiService.getJobStatus(jobId);
         setJobStatus(status);
 
         // Se ainda está processando, fazer polling
-        if (status.status === 'waiting' || status.status === 'active') {
-          await pollJobStatus(jobId, (updatedStatus) => {
-            setJobStatus(updatedStatus);
+        if (status.status === 'processing') {
+          await apiService.pollJobStatus(jobId, {
+            onProgress: (updatedStatus) => {
+              setJobStatus(updatedStatus);
+            }
           });
         }
       } catch (err) {
@@ -76,7 +47,7 @@ export function PreviewPage() {
     };
 
     loadJobStatus();
-  }, [jobId, checkJobStatus, pollJobStatus]);
+  }, [jobId]);
 
   const handleRetry = async () => {
     if (!jobId) return;
@@ -85,12 +56,14 @@ export function PreviewPage() {
     setError(null);
     
     try {
-      const status = await checkJobStatus(jobId);
+      const status = await apiService.getJobStatus(jobId);
       setJobStatus(status);
       
-      if (status && (status.status === 'waiting' || status.status === 'active')) {
-        await pollJobStatus(jobId, (updatedStatus) => {
-          setJobStatus(updatedStatus);
+      if (status && status.status === 'processing') {
+        await apiService.pollJobStatus(jobId, {
+          onProgress: (updatedStatus) => {
+            setJobStatus(updatedStatus);
+          }
         });
       }
     } catch (err) {
@@ -106,8 +79,7 @@ export function PreviewPage() {
         return <CheckCircle className="w-6 h-6 text-green-400" />;
       case 'failed':
         return <AlertCircle className="w-6 h-6 text-red-400" />;
-      case 'waiting':
-      case 'active':
+      case 'processing':
         return <Loader2 className="w-6 h-6 text-nottu-purple animate-spin" />;
       default:
         return <AlertCircle className="w-6 h-6 text-nottu-gray-400" />;
@@ -118,8 +90,7 @@ export function PreviewPage() {
     switch (status) {
       case 'completed': return 'Concluído';
       case 'failed': return 'Falhou';
-      case 'waiting': return 'Aguardando';
-      case 'active': return 'Processando';
+      case 'processing': return 'Processando';
       default: return 'Desconhecido';
     }
   };
@@ -211,7 +182,7 @@ export function PreviewPage() {
           <div className="max-w-2xl mx-auto">
             <PostPreview
               postData={{
-                id: jobStatus.jobId,
+                id: jobStatus.id,
                 imageUrl: jobStatus.result.assets?.finalPath,
                 caption: jobStatus.result.caption || '',
                 hashtags: jobStatus.result.hashtags || [],

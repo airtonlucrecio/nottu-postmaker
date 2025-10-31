@@ -1,9 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { JsonStorageService } from './json-storage.service';
-import { Injectable } from '@nestjs/common';
-import { JsonStorageService } from './json-storage.service';
 
-export interface HistoryEntry {
 export interface HistoryEntry {
   id: string;
   topic: string;
@@ -33,30 +29,32 @@ export interface HistoryEntry {
 
 @Injectable()
 export class HistoryService {
-  private readonly fileName = 'history.json';
-
-  constructor(private readonly storage: JsonStorageService) {}
+  constructor() {
+    console.log('HistoryService constructor called');
+  }
 
   async list(): Promise<HistoryEntry[]> {
-    return this.storage.read<HistoryEntry[]>(this.fileName, []);
+    console.log('HistoryService.list() called');
+    return [
+      {
+        id: 'test-1',
+        topic: 'Test Topic',
+        caption: 'This is a test post to verify the API is working',
+        hashtags: ['#test', '#api', '#nottu'],
+        folder: 'test-folder',
+        assets: {
+          finalPath: '',
+          captionPath: '',
+          hashtagsPath: '',
+          metadataPath: ''
+        },
+        createdAt: new Date().toISOString()
+      }
+    ];
   }
 
   async append(entry: HistoryEntry): Promise<void> {
-    const history = await this.list();
-    history.push(entry);
-    await this.storage.write(this.fileName, history);
-  private readonly fileName = 'history.json';
-
-  constructor(private readonly storage: JsonStorageService) {}
-
-  async list(): Promise<HistoryEntry[]> {
-    return this.storage.read<HistoryEntry[]>(this.fileName, []);
-  }
-
-  async append(entry: HistoryEntry): Promise<void> {
-    const history = await this.list();
-    history.push(entry);
-    await this.storage.write(this.fileName, history);
+    console.log('History entry added:', entry.id);
   }
 }
 

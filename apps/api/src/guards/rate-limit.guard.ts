@@ -80,6 +80,11 @@ export class RateLimitGuard implements CanActivate {
     const path = request.route?.path || request.path;
     const method = request.method;
 
+    // Check if path exists before using includes
+    if (!path) {
+      return null;
+    }
+
     // Different rate limits for different endpoints
     if (path.includes('/api/generate')) {
       return {

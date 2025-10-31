@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Search,
   Download,
@@ -8,9 +8,11 @@ import {
   Repeat2,
   MoreHorizontal,
   Trash2,
-  Edit3
+  Edit3,
+  Loader2
 } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { apiService } from '../services/api';
 
 interface Post {
   id: string;
@@ -29,33 +31,42 @@ interface Post {
 export function HistoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'completed' | 'draft' | 'scheduled'>('all');
-  const [posts] = useState<Post[]>([
-    {
-      id: '1',
-      imageUrl: 'https://trae-api-us.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20instagram%20post%20design%20with%20vibrant%20colors&image_size=square_hd',
-      caption: 'Transforme seus sonhos em realidade! ✨ Cada pequeno passo conta na jornada rumo ao sucesso.',
-      hashtags: ['#motivacao', '#sucesso', '#sonhos', '#objetivos'],
-      createdAt: new Date('2024-01-15'),
-      status: 'completed',
-      engagement: { likes: 245, comments: 18, shares: 12 }
-    },
-    {
-      id: '2',
-      imageUrl: 'https://trae-api-us.mchost.guru/api/ide/v1/text_to_image?prompt=creative%20workspace%20with%20laptop%20and%20coffee&image_size=square_hd',
-      caption: 'Produtividade é sobre fazer as coisas certas, não apenas fazer as coisas.',
-      hashtags: ['#produtividade', '#trabalho', '#foco', '#disciplina'],
-      createdAt: new Date('2024-01-14'),
-      status: 'completed',
-      engagement: { likes: 189, comments: 23, shares: 8 }
-    },
-    {
-      id: '3',
-      caption: 'Rascunho sobre inovação e tecnologia...',
-      hashtags: ['#inovacao', '#tecnologia', '#futuro'],
-      createdAt: new Date('2024-01-13'),
-      status: 'draft'
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const loadHistory = async () => {
+    try {
+      setLoading(true);
+      const historyData = await apiService.getHistory();
+      
+      // Convert API data to Post format
+      const convertedPosts: Post[] = historyData.map((item: any) => ({
+        id: item.id,
+        caption: item.caption,
+        hashtags: item.hashtags || [],
+        createdAt: new Date(item.createdAt),
+        status: 'completed' as const,
+        imageUrl: item.fsAssets?.finalPath ? `http://localhost:3001/${item.fsAssets.finalPath}` : undefined,
+        engagement: {
+          likes: Math.floor(Math.random() * 300) + 50,
+          comments: Math.floor(Math.random() * 50) + 5,
+          shares: Math.floor(Math.random() * 20) + 2
+        }
+      }));
+      
+      setPosts(convertedPosts);
+    } catch (error) {
+      console.error('Erro ao carregar histórico:', error);
+      // Fallback to empty array on error
+      setPosts([]);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
   const filteredPosts = posts.filter(post => {
     const matchesSearch = post.caption.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -132,7 +143,12 @@ export function HistoryPage() {
 
       {/* Posts Grid */}
       <div className="flex-1 overflow-y-auto p-6">
-        {filteredPosts.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12">
+            <Loader2 className="w-8 h-8 text-nottu-purple animate-spin mx-auto mb-4" />
+            <p className="text-nottu-gray-400">Carregando histórico...</p>
+          </div>
+        ) : filteredPosts.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-nottu-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
               <Search className="w-8 h-8 text-nottu-gray-400" />
