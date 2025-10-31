@@ -82,7 +82,6 @@ function buildQueueConfig(configService: ConfigService): QueueConfig {
         return new QueueService(queueConfig);
       },
     },
-    JsonStorageService,
     {
       provide: DiskStorageService,
       inject: [ConfigService],

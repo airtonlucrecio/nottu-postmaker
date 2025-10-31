@@ -17,6 +17,7 @@ import { RateLimitGuard } from './guards/rate-limit.guard';
 import { HistoryService } from './services/history.service';
 import { SettingsService } from './services/settings.service';
 import { LocalQueueService } from './services/local-queue.service';
+import { JsonStorageService } from './services/json-storage.service';
 
 // Configuration
 // Removed custom configuration imports (files não existem no projeto)
@@ -26,7 +27,7 @@ import { LocalQueueService } from './services/local-queue.service';
     // Configuration
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env.local', '.env'],
+      envFilePath: ['.env'],
     }),
 
     // Rate limiting
@@ -48,6 +49,7 @@ import { LocalQueueService } from './services/local-queue.service';
   controllers: [GenerateController, HistoryController, SettingsController],
   providers: [
     // Services
+    JsonStorageService,
     HistoryService,
     SettingsService,
     LocalQueueService,

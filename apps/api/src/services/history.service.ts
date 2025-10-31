@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { JsonStorageService } from './json-storage.service';
 
 export interface HistoryEntry {
   id: string;
@@ -29,32 +30,37 @@ export interface HistoryEntry {
 
 @Injectable()
 export class HistoryService {
-  constructor() {
-    console.log('HistoryService constructor called');
-  }
+  private readonly fileName = 'history.json';
+
+  constructor(private readonly storage: JsonStorageService) {}
 
   async list(): Promise<HistoryEntry[]> {
-    console.log('HistoryService.list() called');
-    return [
-      {
-        id: 'test-1',
-        topic: 'Test Topic',
-        caption: 'This is a test post to verify the API is working',
-        hashtags: ['#test', '#api', '#nottu'],
-        folder: 'test-folder',
-        assets: {
-          finalPath: '',
-          captionPath: '',
-          hashtagsPath: '',
-          metadataPath: ''
-        },
-        createdAt: new Date().toISOString()
-      }
-    ];
+    try {
+      return await this.storage.read<HistoryEntry[]>(this.fileName, []) || [];
+    } catch (error) {
+      console.error('Error reading history:', error);
+      return [];
+    }
   }
 
   async append(entry: HistoryEntry): Promise<void> {
-    console.log('History entry added:', entry.id);
+    try {
+      const currentHistory = await this.list();
+      const updatedHistory = [entry, ...currentHistory]; // Add new entry at the beginning
+      await this.storage.write(this.fileName, updatedHistory);
+    } catch (error) {
+      console.error('Error saving history entry:', error);
+      throw error;
+    }
+  }
+
+  async clear(): Promise<void> {
+    try {
+      await this.storage.write(this.fileName, []);
+    } catch (error) {
+      console.error('Error clearing history:', error);
+      throw error;
+    }
   }
 }
 

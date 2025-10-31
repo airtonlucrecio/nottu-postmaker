@@ -37,30 +37,40 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Swagger documentation (guarded to avoid startup failures)
+  // Swagger documentation (setup BEFORE global prefix)
   try {
     const config = new DocumentBuilder()
       .setTitle('Nottu PostMaker API')
-      .setDescription('API para geração de criativos com IA - Nottu Tech')
+      .setDescription('API para geração de criativos com IA - Nottu Tech\n\nEsta API permite gerar posts para Instagram com legendas, hashtags e imagens usando inteligência artificial.')
       .setVersion('1.0')
-      .addTag('posts', 'Operações relacionadas aos posts')
-      .addTag('ai', 'Integração com serviços de IA')
-      .addTag('health', 'Health checks e status')
+      .addTag('generate', 'Geração de posts com IA')
+      .addTag('history', 'Histórico de posts gerados')
+      .addTag('settings', 'Configurações do sistema')
+      .addApiKey({
+        type: 'apiKey',
+        name: 'X-API-Key',
+        in: 'header',
+        description: 'API Key para autenticação'
+      }, 'api-key')
+      .addServer('http://localhost:3001', 'Servidor de desenvolvimento')
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
+    SwaggerModule.setup('', app, document);
   } catch (err) {
     logger.warn(`Swagger setup skipped: ${(err instanceof Error ? err.message : String(err))}`);
   }
 
-  // Global prefix
-  app.setGlobalPrefix('api');
+  // Global prefix for API routes (AFTER Swagger setup to exclude Swagger from prefix)
+  app.setGlobalPrefix('api', {
+    exclude: ['/']
+  });
 
   await app.listen(port, '0.0.0.0');
   
   logger.log(`🚀 Nottu PostMaker API running on: http://localhost:${port}`);
-  logger.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+  logger.log(`📚 Swagger docs available at: http://localhost:${port}`);
+  logger.log(`🔗 API endpoints available at: http://localhost:${port}/api/*`);
 }
 
 bootstrap().catch((error) => {

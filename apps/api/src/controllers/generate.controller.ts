@@ -2,20 +2,19 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   HttpException,
   HttpStatus,
   Param,
   Post,
-  Inject,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam } from '@nestjs/swagger';
 import { v4 as uuid } from 'uuid';
 import { HistoryService } from '../services/history.service';
+import { GenerateRequestDto } from '../dto/generate-request.dto';
+import { JobStatusResponseDto } from '../dto/job-status-response.dto';
 
-interface GenerateRequest {
-  topic: string;
-  includeImage?: boolean;
-  imageProvider?: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
-}
+
 
 interface Job {
   id: string;
@@ -41,16 +40,71 @@ interface Job {
   error?: string;
 }
 
+@ApiTags('generate')
 @Controller('generate')
 export class GenerateController {
   private jobs = new Map<string, Job>();
 
   constructor(
-    @Inject(HistoryService) private readonly historyService: HistoryService,
+    private readonly historyService: HistoryService,
   ) {}
 
   @Post()
-  async enqueue(@Body() body: GenerateRequest) {
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Criar novo job de geração de post',
+    description: 'Envia um tópico para geração assíncrona de post com legenda, hashtags e imagem opcional',
+  })
+  @ApiBody({
+    type: GenerateRequestDto,
+    description: 'Dados para geração do post',
+    examples: {
+      'receita-bolo': {
+        summary: 'Receita de bolo',
+        description: 'Exemplo de geração de post sobre receita de bolo de chocolate',
+        value: {
+          topic: 'receita de bolo de chocolate',
+          includeImage: true,
+          imageProvider: 'dalle'
+        }
+      },
+      'dica-fitness': {
+        summary: 'Dica de fitness',
+        description: 'Exemplo de post sobre fitness sem imagem',
+        value: {
+          topic: 'dicas de exercícios em casa',
+          includeImage: false
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Job criado com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        jobId: {
+          type: 'string',
+          example: '134e5974-7320-40f0-bfa8-5600aa768b4e',
+          description: 'ID único do job criado'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados inválidos fornecidos',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'array', items: { type: 'string' }, example: ['topic should not be empty'] },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  async enqueue(@Body() body: GenerateRequestDto) {
     if (!body.topic || body.topic.trim().length === 0) {
       throw new HttpException('Topic is required', HttpStatus.BAD_REQUEST);
     }
@@ -91,6 +145,33 @@ export class GenerateController {
   }
 
   @Get('status/:jobId')
+  @ApiOperation({
+    summary: 'Consultar status do job',
+    description: 'Retorna o status atual e resultados de um job de geração',
+  })
+  @ApiParam({
+    name: 'jobId',
+    description: 'ID único do job',
+    example: '134e5974-7320-40f0-bfa8-5600aa768b4e',
+    type: 'string'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Status do job retornado com sucesso',
+    type: JobStatusResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Job não encontrado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 404 },
+        message: { type: 'string', example: 'Job not found' },
+        error: { type: 'string', example: 'Not Found' }
+      }
+    }
+  })
   async getStatus(@Param('jobId') jobId: string) {
     if (!jobId) {
       throw new HttpException('Job ID is required', HttpStatus.BAD_REQUEST);
