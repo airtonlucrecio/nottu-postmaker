@@ -79,7 +79,6 @@ export function SettingsPage() {
         }
       }));
     } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
       toast.error('Erro ao carregar configurações');
     }
   };
@@ -115,7 +114,6 @@ export function SettingsPage() {
 
   const handleSave = () => {
     // Implementar salvamento das configurações
-    console.log('Configurações salvas:', settings);
   };
 
   const updateSetting = (section: string, key: string, value: any) => {

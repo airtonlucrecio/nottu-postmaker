@@ -15,17 +15,7 @@ interface PostAssets {
   videos?: string[];
 }
 
-// Mock ValidationUtils
-const ValidationUtils = {
-  isValidUrl: (url: string): boolean => {
-    try {
-      new URL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-};
+import { ValidationUtils } from '@nottu/core/utils/validation.utils';
 import { PuppeteerEngine, RenderOptions } from '../engines/puppeteer-engine';
 import { SatoriEngine, SatoriRenderOptions } from '../engines/satori-engine';
 

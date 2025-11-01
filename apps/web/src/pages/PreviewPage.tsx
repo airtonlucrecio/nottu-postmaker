@@ -39,7 +39,6 @@ export function PreviewPage() {
           });
         }
       } catch (err) {
-        console.error('Erro ao carregar status do job:', err);
         setError('Erro ao carregar o post');
       } finally {
         setIsLoading(false);

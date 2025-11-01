@@ -3,7 +3,7 @@ export interface PostGenerationJobData {
   topic: string;
   userId?: string;
   includeImage: boolean;
-  imageProvider: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+  imageProvider: 'dalle';
   requestedAt: string;
 }
 

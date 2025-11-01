@@ -6,8 +6,8 @@ import { GeneratePostDto, PostContent, AIProvider } from '@nottu/core';
 export interface OpenAIConfig {
   apiKey: string;
   model: string;
-  temperature: number;
-  maxTokens: number;
+  reasoning: { effort: string };
+  maxOutputTokens: number;
   organization?: string;
 }
 
@@ -32,8 +32,10 @@ export class OpenAIService {
     this.config = {
       apiKey: this.configService.get<string>('OPENAI_API_KEY') || '',
       model: this.configService.get<string>('OPENAI_MODEL') || 'gpt-5',
-      temperature: parseFloat(this.configService.get<string>('OPENAI_TEMPERATURE') || '0.7'),
-      maxTokens: parseInt(this.configService.get<string>('OPENAI_MAX_TOKENS') || '2000'),
+      reasoning: { 
+        effort: this.configService.get<string>('OPENAI_REASONING_EFFORT') || 'medium' 
+      },
+      maxOutputTokens: parseInt(this.configService.get<string>('OPENAI_MAX_OUTPUT_TOKENS') || '2000'),
       organization: this.configService.get<string>('OPENAI_ORGANIZATION'),
     };
 
@@ -51,35 +53,38 @@ export class OpenAIService {
     const startTime = Date.now();
 
     try {
-      // Build system prompt
-      const systemPrompt = this.buildSystemPrompt(request);
+      // Build input prompt combining system and user instructions
+      const inputPrompt = this.buildInputPrompt(request);
 
-      // Build user prompt
-      const userPrompt = this.buildUserPrompt(request);
-
-      // Call OpenAI API
-      const completion = await this.openai.chat.completions.create({
+      // Call OpenAI Responses API
+      const response = await this.openai.responses.create({
         model: this.config.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: this.config.temperature,
-        max_tokens: this.config.maxTokens,
-        response_format: { type: 'json_object' },
+        input: inputPrompt,
+        reasoning: this.config.reasoning,
+        max_output_tokens: this.config.maxOutputTokens,
       });
 
       // Parse response
-      const response = completion.choices[0]?.message?.content;
-      if (!response) {
+      const responseText = response.output_text;
+      if (!responseText) {
         throw new InternalServerErrorException('No response from OpenAI');
       }
 
       let parsedContent: any;
       try {
-        parsedContent = JSON.parse(response);
+        parsedContent = JSON.parse(responseText);
       } catch (error) {
-        throw new InternalServerErrorException('Invalid JSON response from OpenAI');
+        // If not JSON, try to extract JSON from the response
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            parsedContent = JSON.parse(jsonMatch[0]);
+          } catch {
+            throw new InternalServerErrorException('Invalid JSON response from OpenAI');
+          }
+        } else {
+          throw new InternalServerErrorException('Invalid JSON response from OpenAI');
+        }
       }
 
       // Validate and enhance content
@@ -90,17 +95,15 @@ export class OpenAIService {
       return {
         content: validatedContent,
         usage: {
-          promptTokens: completion.usage?.prompt_tokens || 0,
-          completionTokens: completion.usage?.completion_tokens || 0,
-          totalTokens: completion.usage?.total_tokens || 0,
+          promptTokens: response.usage?.input_tokens || 0,
+          completionTokens: response.usage?.output_tokens || 0,
+          totalTokens: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0),
         },
         model: this.config.model,
         provider: AIProvider.OPENAI,
         generationTime,
       };
     } catch (error) {
-      console.error('OpenAI generation error:', error);
-
       if (error instanceof OpenAI.APIError) {
         if (error.status === 401) {
           throw new BadRequestException('Invalid OpenAI API key');
@@ -112,6 +115,27 @@ export class OpenAIService {
       }
 
       throw new InternalServerErrorException('Failed to generate post with OpenAI');
+    }
+  }
+
+  async generatePostStream(request: GeneratePostDto): Promise<AsyncIterable<string>> {
+    const inputPrompt = this.buildInputPrompt(request);
+
+    const stream = await this.openai.responses.stream({
+      model: this.config.model,
+      input: inputPrompt,
+      reasoning: this.config.reasoning,
+      max_output_tokens: this.config.maxOutputTokens,
+    });
+
+    return this.processStream(stream);
+  }
+
+  private async* processStream(stream: any): AsyncIterable<string> {
+    for await (const event of stream) {
+      if (event.type === "response.output_text.delta") {
+        yield event.delta;
+      }
     }
   }
 
@@ -132,7 +156,6 @@ export class OpenAIService {
         const variation = await this.generatePost(variationRequest);
         variations.push(variation);
       } catch (error) {
-        console.error(`Error generating variation ${i + 1}:`, error);
         // Continue with other variations
       }
     }
@@ -142,98 +165,89 @@ export class OpenAIService {
 
   async generateHashtags(content: string, count: number = 10): Promise<string[]> {
     try {
-      const completion = await this.openai.chat.completions.create({
+      const inputPrompt = `You are a social media hashtag expert. Generate ${count} relevant, trending hashtags for the given content. Return only a JSON array of hashtags without the # symbol.
+
+Content: ${content}
+
+Return format: {"hashtags": ["hashtag1", "hashtag2", ...]}`;
+
+      const response = await this.openai.responses.create({
         model: this.config.model,
-        messages: [
-          {
-            role: 'system',
-            content: `You are a social media hashtag expert. Generate relevant, trending hashtags for the given content. Return only a JSON array of hashtags without the # symbol.`,
-          },
-          {
-            role: 'user',
-            content: `Generate ${count} relevant hashtags for this content: ${content}`,
-          },
-        ],
-        temperature: 0.8,
-        max_tokens: 500,
-        response_format: { type: 'json_object' },
+        input: inputPrompt,
+        reasoning: this.config.reasoning,
+        max_output_tokens: 500,
       });
 
-      const response = completion.choices[0]?.message?.content;
-      if (!response) {
+      const responseText = response.output_text;
+      if (!responseText) {
         return [];
       }
 
-      const parsed = JSON.parse(response);
+      const parsed = JSON.parse(responseText);
       return Array.isArray(parsed.hashtags) ? parsed.hashtags : [];
     } catch (error) {
-      console.error('Error generating hashtags:', error);
       return [];
     }
   }
 
   async improveContent(content: PostContent): Promise<PostContent> {
     try {
-      const completion = await this.openai.chat.completions.create({
+      const inputPrompt = `You are a social media content optimizer. Improve the given post content while maintaining its core message. Make it more engaging, clear, and impactful. Return the improved content in JSON format.
+
+Original content: ${JSON.stringify(content)}
+
+Return format: {"caption": "improved caption", "hashtags": ["hashtag1", "hashtag2"], "visualPrompt": "improved visual description"}`;
+
+      const response = await this.openai.responses.create({
         model: this.config.model,
-        messages: [
-          {
-            role: 'system',
-            content: `You are a social media content optimizer. Improve the given post content while maintaining its core message. Make it more engaging, clear, and impactful. Return the improved content in JSON format.`,
-          },
-          {
-            role: 'user',
-            content: `Improve this post content: ${JSON.stringify(content)}`,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' },
+        input: inputPrompt,
+        reasoning: this.config.reasoning,
+        max_output_tokens: 1000,
       });
 
-      const response = completion.choices[0]?.message?.content;
-      if (!response) {
+      const responseText = response.output_text;
+      if (!responseText) {
         return content;
       }
 
-      const improved = JSON.parse(response);
+      const improved = JSON.parse(responseText);
       return this.validateAndEnhanceContent(improved, null);
     } catch (error) {
-      console.error('Error improving content:', error);
       return content;
     }
   }
 
-  private buildSystemPrompt(request: GeneratePostDto): string {
+  private buildInputPrompt(request: GeneratePostDto): string {
     const tone = request.aiSettings && (request.aiSettings as any).tone ? (request.aiSettings as any).tone : 'neutral';
     const style = request.style || 'modern';
-    return `You are an expert social media content creator.
-
-Your task is to create engaging, high-quality social media content that:
-- Matches the specified tone: ${tone}
-- Follows current social media best practices
-- Is authentic and engaging
-
-Return your response as a JSON object with this exact structure:
-{
-  "caption": "Main post caption",
-  "hashtags": ["hashtag1", "hashtag2"],
-  "visualPrompt": "Concise visual description for an image"
-}`;
-  }
-
-  private buildUserPrompt(request: GeneratePostDto): string {
+    
     const parts: string[] = [];
+    parts.push(`You are an expert social media content creator.`);
+    parts.push(`Your task is to create engaging, high-quality social media content that:`);
+    parts.push(`- Matches the specified tone: ${tone}`);
+    parts.push(`- Follows current social media best practices`);
+    parts.push(`- Is authentic and engaging`);
+    parts.push('');
     parts.push(`Topic: ${request.topic}`);
+    
     if (request.customPrompt) parts.push(`Custom prompt: ${request.customPrompt}`);
     if (request.style) parts.push(`Style: ${request.style}`);
+    
     const ai = request.aiSettings || {};
     if ((ai as any).language) parts.push(`Language: ${(ai as any).language}`);
     if ((ai as any).targetAudience) parts.push(`Target audience: ${(ai as any).targetAudience}`);
     if ((ai as any).keywords && Array.isArray((ai as any).keywords)) {
       parts.push(`Keywords: ${(ai as any).keywords.join(', ')}`);
     }
-    parts.push('Return JSON only with keys caption, hashtags, visualPrompt.');
+    
+    parts.push('');
+    parts.push('Return your response as a JSON object with this exact structure:');
+    parts.push('{');
+    parts.push('  "caption": "Main post caption",');
+    parts.push('  "hashtags": ["hashtag1", "hashtag2"],');
+    parts.push('  "visualPrompt": "Concise visual description for an image"');
+    parts.push('}');
+    
     return parts.join('\n');
   }
 
@@ -268,7 +282,6 @@ Return your response as a JSON object with this exact structure:
       await this.openai.models.list();
       return true;
     } catch (error) {
-      console.error('OpenAI connection test failed:', error);
       return false;
     }
   }
@@ -276,8 +289,8 @@ Return your response as a JSON object with this exact structure:
   getConfig(): Omit<OpenAIConfig, 'apiKey'> {
     return {
       model: this.config.model,
-      temperature: this.config.temperature,
-      maxTokens: this.config.maxTokens,
+      reasoning: this.config.reasoning,
+      maxOutputTokens: this.config.maxOutputTokens,
       organization: this.config.organization,
     };
   }

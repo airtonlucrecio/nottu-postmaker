@@ -6,18 +6,25 @@ import { APP_GUARD } from '@nestjs/core';
 
 // Controllers
 import { GenerateController } from './controllers/generate.controller';
-import { HistoryController } from './controllers/history.controller';
 import { SettingsController } from './controllers/settings.controller';
+import { HealthController } from './controllers/health.controller';
+import { ImagesController } from './controllers/images.controller';
 
 // Guards
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { RateLimitGuard } from './guards/rate-limit.guard';
 
 // Services
-import { HistoryService } from './services/history.service';
 import { SettingsService } from './services/settings.service';
 import { LocalQueueService } from './services/local-queue.service';
 import { JsonStorageService } from './services/json-storage.service';
+import { VisualAIService } from './services/visual-ai.service';
+
+// Modules
+import { HistoryModule } from './modules/history.module';
+import { StorageModule } from './modules/storage.module';
+import { VisualAIModule } from './modules/visual-ai.module';
+import { ImagesModule } from './modules/images.module';
 
 // Configuration
 // Removed custom configuration imports (files não existem no projeto)
@@ -45,15 +52,27 @@ import { JsonStorageService } from './services/json-storage.service';
     // Scheduler
     ScheduleModule.forRoot(),
 
+    // Storage module
+    StorageModule,
+
+    // History module
+    HistoryModule,
+
+    // Visual AI module
+    VisualAIModule,
+
+    // Images module
+    ImagesModule,
+
   ],
-  controllers: [GenerateController, HistoryController, SettingsController],
+  controllers: [GenerateController, SettingsController, HealthController],
   providers: [
     // Services
     JsonStorageService,
-    HistoryService,
     SettingsService,
     LocalQueueService,
-    
+    // VisualAIService is provided by VisualAIModule
+
     // Global guards
     {
       provide: APP_GUARD,

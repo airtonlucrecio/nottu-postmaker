@@ -15,7 +15,7 @@ import { HistoryService } from './history.service';
 @Injectable()
 export class GenerationService {
   private readonly logger = new Logger(GenerationService.name);
-  private readonly imageProviderDefault: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+  private readonly imageProviderDefault: 'dalle';
   private readonly composer = new PostComposer();
   private composerReady = false;
 
@@ -27,9 +27,7 @@ export class GenerationService {
     private readonly historyService: HistoryService,
   ) {
     const provider = this.configService.get<string>('IA_IMAGE_PROVIDER') || 'dalle';
-    this.imageProviderDefault = ['dalle', 'flux', 'leonardo', 'sdxl_local'].includes(provider)
-      ? (provider as any)
-      : 'dalle';
+    this.imageProviderDefault = provider === 'dalle' ? 'dalle' : 'dalle';
   }
 
   async processJob(
@@ -47,12 +45,6 @@ export class GenerationService {
         : undefined;
 
       let effectiveImageProvider = requestedImageProvider;
-      if (effectiveImageProvider === 'sdxl_local') {
-        this.logger.warn(
-          'IA provider "sdxl_local" ainda não possui implementação local. Aplicando fallback para DALL-E 3.',
-        );
-        effectiveImageProvider = 'dalle';
-      }
 
       let imageResult: Awaited<ReturnType<GenerationService['generateImage']>>;
       if (effectiveImageProvider) {

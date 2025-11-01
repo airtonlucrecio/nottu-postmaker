@@ -23,12 +23,11 @@ export class GenerateRequestDto {
 
   @ApiProperty({
     description: 'Provedor de IA para geração de imagem',
+    enum: ['dalle'],
     example: 'dalle',
-    enum: ['dalle', 'flux', 'leonardo', 'sdxl_local'],
-    default: 'dalle',
     required: false,
   })
   @IsOptional()
-  @IsIn(['dalle', 'flux', 'leonardo', 'sdxl_local'])
-  imageProvider?: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+  @IsIn(['dalle'])
+  imageProvider?: 'dalle';
 }

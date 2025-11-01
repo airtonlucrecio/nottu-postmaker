@@ -38,7 +38,6 @@ export class HistoryService {
     try {
       return await this.storage.read<HistoryEntry[]>(this.fileName, []) || [];
     } catch (error) {
-      console.error('Error reading history:', error);
       return [];
     }
   }
@@ -49,7 +48,6 @@ export class HistoryService {
       const updatedHistory = [entry, ...currentHistory]; // Add new entry at the beginning
       await this.storage.write(this.fileName, updatedHistory);
     } catch (error) {
-      console.error('Error saving history entry:', error);
       throw error;
     }
   }
@@ -58,7 +56,6 @@ export class HistoryService {
     try {
       await this.storage.write(this.fileName, []);
     } catch (error) {
-      console.error('Error clearing history:', error);
       throw error;
     }
   }

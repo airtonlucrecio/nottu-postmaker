@@ -1,8 +1,6 @@
 export enum AIProvider {
   OPENAI = 'openai',
-  DALLE = 'dalle',
-  FLUX = 'flux',
-  LEONARDO = 'leonardo'
+  DALLE = 'dalle'
 }
 
 export enum AIProviderType {

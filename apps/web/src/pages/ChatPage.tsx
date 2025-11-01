@@ -80,8 +80,6 @@ export function ChatPage() {
         throw new Error('Resposta inválida da API');
       }
     } catch (error) {
-      console.error('Erro ao gerar post:', error);
-      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: 'Desculpe, ocorreu um erro ao gerar o post. Tente novamente.',

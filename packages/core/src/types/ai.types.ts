@@ -65,7 +65,7 @@ export interface AIProviderConfig {
   name: AIProviderName;
   type: 'text' | 'image';
   models: string[];
-  config: OpenAIConfig | FluxConfig | LeonardoConfig;
+  config: OpenAIConfig;
 }
 
 export interface OpenAIConfig {
@@ -73,18 +73,6 @@ export interface OpenAIConfig {
   model: string;
   baseURL?: string;
   organization?: string;
-}
-
-export interface FluxConfig {
-  apiKey: string;
-  model: 'flux-1-pro' | 'flux-1-dev' | 'flux-1-schnell';
-  baseURL?: string;
-}
-
-export interface LeonardoConfig {
-  apiKey: string;
-  model: string;
-  baseURL?: string;
 }
 
 export type ImageSize = 
@@ -97,6 +85,6 @@ export type ImageSize =
 
 export type ImageQuality = 'standard' | 'hd' | 'ultra';
 
-export type AIProviderName = 'dalle' | 'flux' | 'leonardo' | 'openai';
+export type AIProviderName = 'dalle' | 'openai';
 
 export type AIProviderType = 'text' | 'image';

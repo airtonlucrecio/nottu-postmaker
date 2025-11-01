@@ -3,7 +3,7 @@ import axios, { AxiosInstance, AxiosError } from 'axios';
 export interface GeneratePostRequest {
   topic: string;
   includeImage?: boolean;
-  imageProvider?: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+  imageProvider?: 'dalle';
 }
 
 export interface JobStatus {
@@ -56,11 +56,9 @@ class ApiService {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
-        console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
         return config;
       },
       (error) => {
-        console.error('[API] Request error:', error);
         return Promise.reject(error);
       }
     );
@@ -68,18 +66,9 @@ class ApiService {
     // Response interceptor
     this.client.interceptors.response.use(
       (response) => {
-        console.log(`[API] ${response.status} ${response.config.url}`);
         return response;
       },
       (error: AxiosError) => {
-        console.error('[API] Response error:', error.response?.status, error.message);
-        
-        if (error.response?.status === 401) {
-          console.error('[API] Unauthorized - check API key');
-        } else if (error.response?.status === 429) {
-          console.error('[API] Rate limit exceeded');
-        }
-        
         return Promise.reject(error);
       }
     );
@@ -139,8 +128,6 @@ class ApiService {
         // Wait before next poll
         await new Promise(resolve => setTimeout(resolve, intervalMs));
       } catch (error) {
-        console.error(`[API] Polling attempt ${attempt + 1} failed:`, error);
-        
         if (attempt === maxAttempts - 1) {
           throw error;
         }

@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { HistoryService } from '../services/history.service';
 import { HistoryEntryDto } from '../dto/history-entry.dto';
@@ -6,7 +6,7 @@ import { HistoryEntryDto } from '../dto/history-entry.dto';
 @ApiTags('history')
 @Controller('history')
 export class HistoryController {
-  constructor(private readonly historyService: HistoryService) {}
+  constructor(@Inject(HistoryService) private readonly historyService: HistoryService) {}
 
   @Get('test')
   @ApiOperation({
@@ -51,9 +51,6 @@ export class HistoryController {
     }
   })
   async list() {
-    if (!this.historyService) {
-      throw new Error('HistoryService is not injected');
-    }
     return this.historyService.list();
   }
 }

@@ -63,13 +63,8 @@ export class ValidationUtils {
 
     switch (provider) {
       case AIProvider.OPENAI:
-        return apiKey.startsWith('sk-') && apiKey.length > 20;
       case AIProvider.DALLE:
         return apiKey.startsWith('sk-') && apiKey.length > 20;
-      case AIProvider.FLUX:
-        return apiKey.length > 10; // Flux pode ter formato diferente
-      case AIProvider.LEONARDO:
-        return apiKey.length > 10; // Leonardo pode ter formato diferente
       default:
         return false;
     }

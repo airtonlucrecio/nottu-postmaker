@@ -1,10 +1,8 @@
-const esbuild = require('esbuild-wasm');
+const esbuild = require('esbuild');
 const path = require('path');
 
 async function build() {
   try {
-    await esbuild.initialize();
-    
     await esbuild.build({
       entryPoints: ['src/main.ts'],
       bundle: true,
@@ -15,14 +13,11 @@ async function build() {
       external: [
         '@nottu/*',
         '@nestjs/*',
-        '@fastify/*',
         'class-transformer',
         'class-validator',
         'axios',
         'date-fns',
         'openai',
-        'pino',
-        'pino-pretty',
         'puppeteer',
         'sharp',
         'uuid'

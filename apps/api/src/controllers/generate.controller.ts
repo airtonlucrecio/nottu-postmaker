@@ -138,7 +138,7 @@ export class GenerateController {
 
     // Process job asynchronously
     this.processJob(jobId).catch(error => {
-      console.error(`Failed to process job ${jobId}:`, error);
+      // Handle job processing error silently
     });
 
     return { jobId };
@@ -195,7 +195,6 @@ export class GenerateController {
       job.progress = { percentage: 5, step: 'initializing', message: 'Iniciando processamento' };
 
       // Mock processing since we don't have GenerationService injected
-      console.log(`Processing job ${jobId} with mock data`);
       
       await this.delay(1000);
       job.progress = { percentage: 30, step: 'generating_text', message: 'Gerando texto' };
@@ -252,16 +251,14 @@ export class GenerateController {
           },
           createdAt: new Date().toISOString(),
         });
-        console.log(`Job ${jobId} completed successfully and saved to history`);
       } catch (historyError) {
-        console.warn(`Job ${jobId} completed but failed to save to history:`, historyError);
+        // History save failed, but job completed successfully
       }
 
     } catch (error) {
       job.status = 'failed';
       job.error = error instanceof Error ? error.message : String(error);
       job.timestamps.completed = new Date();
-      console.error(`Job ${jobId} failed: ${job.error}`);
     }
   }
 

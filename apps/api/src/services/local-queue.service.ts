@@ -6,7 +6,7 @@ interface JobData {
   jobId: string;
   topic: string;
   includeImage?: boolean;
-  imageProvider?: 'dalle' | 'flux' | 'leonardo' | 'sdxl_local';
+  imageProvider?: 'dalle';
   requestedAt: string;
 }
 

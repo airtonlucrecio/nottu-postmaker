@@ -7,6 +7,7 @@ import { VisualAIService } from '../services/visual-ai.service';
 import { DiskStorageService } from '../services/disk-storage.service';
 import { JsonStorageService } from '../services/json-storage.service';
 import { HistoryService } from '../services/history.service';
+import { VisualAIModule } from './visual-ai.module';
 
 function buildQueueConfig(configService: ConfigService): QueueConfig {
   const redisUrl = configService.get<string>('REDIS_URL') || configService.get<string>('REDIS_TLS_URL');
@@ -72,7 +73,7 @@ function buildQueueConfig(configService: ConfigService): QueueConfig {
 }
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, VisualAIModule],
   providers: [
     {
       provide: QueueService,
@@ -96,13 +97,7 @@ function buildQueueConfig(configService: ConfigService): QueueConfig {
         return new OpenAIService(configService);
       },
     },
-    {
-      provide: VisualAIService,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        return new VisualAIService(configService);
-      },
-    },
+
     {
       provide: GenerationService,
       inject: [ConfigService, OpenAIService, VisualAIService, DiskStorageService, HistoryService],
