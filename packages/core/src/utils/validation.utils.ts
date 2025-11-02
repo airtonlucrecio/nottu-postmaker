@@ -74,6 +74,15 @@ export class ValidationUtils {
    * Valida se um URL é válido
    */
   static isValidUrl(url: string): boolean {
+    if (!url || typeof url !== 'string') {
+      return false;
+    }
+
+    // Allow data URLs for inline images (used when embedding base64 images)
+    if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(url)) {
+      return true;
+    }
+
     try {
       new URL(url);
       return true;

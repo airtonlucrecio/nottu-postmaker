@@ -34,6 +34,16 @@ interface PersistOptions {
     effectiveImage?: string;
   };
   imageUrl?: string;
+  visualPrompt?: string;
+  textMetadata?: Record<string, any>;
+  image?: {
+    prompt?: string;
+    revisedPrompt?: string;
+    provider?: string;
+    model?: string;
+    metadata?: Record<string, any>;
+    url?: string;
+  };
   composition: {
     buffer: Buffer;
     format: string;
@@ -118,6 +128,21 @@ export class DiskStorageService {
       hashtags: options.hashtags,
       provider: providerMetadata,
       imageUrl: options.imageUrl,
+      prompts: {
+        topic: options.topic,
+        visual: options.visualPrompt,
+        image: options.image?.prompt,
+        revisedImage: options.image?.revisedPrompt,
+      },
+      text: options.textMetadata,
+      image: options.image
+        ? {
+            provider: options.image.provider || effectiveImage,
+            model: options.image.model,
+            url: options.image.url || options.imageUrl,
+            metadata: options.image.metadata,
+          }
+        : undefined,
       requestedAt: options.requestedAt.toISOString(),
       startedAt: options.startedAt.toISOString(),
       completedAt: completedAt.toISOString(),

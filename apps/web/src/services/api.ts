@@ -26,7 +26,12 @@ export interface JobStatus {
     };
     folder: string;
     folderFs: string;
-    fsAssets: string[];
+    fsAssets?: {
+      finalPath: string;
+      captionPath: string;
+      hashtagsPath: string;
+      metadataPath: string;
+    };
     metadata: any;
   };
   timestamps: {
