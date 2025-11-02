@@ -95,13 +95,26 @@ class ApiService {
       return undefined;
     }
 
-    if (/^(https?:)?\/\//i.test(path) || path.startsWith('data:')) {
-      return path;
+    const normalizedInput = path.replace(/\\/g, '/');
+
+    if (/^(https?:)?\/\//i.test(normalizedInput) || normalizedInput.startsWith('data:')) {
+      return normalizedInput;
     }
 
     const baseUrl = this.getBaseUrl();
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    return `${baseUrl}${normalizedPath}`;
+    const normalizedPath = normalizedInput.startsWith('/') ? normalizedInput : `/${normalizedInput}`;
+
+    if (!baseUrl) {
+      return normalizedPath;
+    }
+
+    const baseWithSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
+    try {
+      return new URL(normalizedPath, baseWithSlash).toString();
+    } catch (error) {
+      return `${baseUrl.replace(/\/+$/, '')}${normalizedPath}`;
+    }
   }
 
   // History endpoints
