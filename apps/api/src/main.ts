@@ -3,6 +3,9 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import fastifyStatic from '@fastify/static';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -16,6 +19,19 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3001); // coloque 3001 se é o que você usa
   const corsOrigin = configService.get<string>('CORS_ORIGIN', 'http://localhost:5173');
+  const outputPath =
+    configService.get<string>('OUTPUT_PATH') || path.join(process.cwd(), 'output');
+  const servePrefixRaw = configService.get<string>('OUTPUT_SERVE_PREFIX') || '/files';
+  const servePrefix = `/${servePrefixRaw.replace(/^\/+|\/+$/g, '')}/`;
+
+  await fs.mkdir(outputPath, { recursive: true });
+
+  await app.register(fastifyStatic, {
+    root: outputPath,
+    prefix: servePrefix,
+    decorateReply: false,
+    index: false,
+  });
 
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
@@ -37,5 +53,7 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   logger.log(`🚀 API rodando: http://localhost:${port}`);
+  logger.log(`📁 Servindo arquivos estáticos de ${outputPath} em ${servePrefix}`);
 }
+
 bootstrap();

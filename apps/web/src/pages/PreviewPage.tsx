@@ -134,6 +134,14 @@ export function PreviewPage() {
     );
   }
 
+  const previewImagePath =
+    jobStatus?.result?.publicAssets?.finalPath ||
+    jobStatus?.result?.metadata?.output?.public?.finalPath ||
+    jobStatus?.result?.metadata?.image?.url;
+
+  const previewImageUrl =
+    apiService.resolveAssetUrl(previewImagePath) || jobStatus?.result?.metadata?.image?.url;
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -182,7 +190,7 @@ export function PreviewPage() {
             <PostPreview
               postData={{
                 id: jobStatus.id,
-                imageUrl: jobStatus.result.assets?.finalPath,
+                imageUrl: previewImageUrl,
                 caption: jobStatus.result.caption || '',
                 hashtags: jobStatus.result.hashtags || [],
                 status: 'completed'

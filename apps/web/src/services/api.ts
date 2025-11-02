@@ -26,7 +26,19 @@ export interface JobStatus {
     };
     folder: string;
     folderFs: string;
-    fsAssets: string[];
+    fsAssets?: {
+      finalPath: string;
+      captionPath: string;
+      hashtagsPath: string;
+      metadataPath: string;
+    };
+    publicAssets?: {
+      folder?: string;
+      finalPath?: string;
+      captionPath?: string;
+      hashtagsPath?: string;
+      metadataPath?: string;
+    };
     metadata: any;
   };
   timestamps: {
@@ -74,10 +86,29 @@ class ApiService {
     );
   }
 
+  getBaseUrl(): string {
+    return this.client.defaults.baseURL || '';
+  }
+
+  resolveAssetUrl(path?: string | null): string | undefined {
+    if (!path) {
+      return undefined;
+    }
+
+    if (/^(https?:)?\/\//i.test(path) || path.startsWith('data:')) {
+      return path;
+    }
+
+    const baseUrl = this.getBaseUrl();
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${baseUrl}${normalizedPath}`;
+  }
+
   // History endpoints
   async getHistory() {
     const response = await this.client.get('/api/history');
-    return response.data;
+    const payload = response.data as { data?: unknown } | undefined;
+    return (payload && Array.isArray(payload.data)) ? payload.data : response.data;
   }
 
   // Settings endpoints

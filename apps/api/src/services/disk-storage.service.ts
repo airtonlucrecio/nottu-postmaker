@@ -19,6 +19,13 @@ export interface PersistedAssets {
     hashtagsPath: string;
     metadataPath: string;
   };
+  publicAssets: {
+    folder: string;
+    finalPath: string;
+    captionPath: string;
+    hashtagsPath: string;
+    metadataPath: string;
+  };
   metadata: Record<string, any>;
 }
 
@@ -34,6 +41,16 @@ interface PersistOptions {
     effectiveImage?: string;
   };
   imageUrl?: string;
+  visualPrompt?: string;
+  textMetadata?: Record<string, any>;
+  image?: {
+    prompt?: string;
+    revisedPrompt?: string;
+    provider?: string;
+    model?: string;
+    metadata?: Record<string, any>;
+    url?: string;
+  };
   composition: {
     buffer: Buffer;
     format: string;
@@ -55,15 +72,21 @@ export class DiskStorageService {
   private readonly outputBaseResolved: string;
   private readonly displayIsWindows: boolean;
   private readonly displayBaseNormalized: string;
+  private readonly servePrefix: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.outputBaseFs = this.configService.get<string>('OUTPUT_PATH') || 'C:/NottuPosts';
+    this.outputBaseFs =
+      this.configService.get<string>('OUTPUT_PATH') || path.join(process.cwd(), 'output');
     this.outputBaseDisplay = this.configService.get<string>('OUTPUT_WINDOWS_PATH') || this.outputBaseFs;
     this.outputBaseResolved = path.resolve(this.outputBaseFs);
     this.displayIsWindows = /^[a-zA-Z]:/.test(this.outputBaseDisplay) || this.outputBaseDisplay.includes('\\');
     this.displayBaseNormalized = this.displayIsWindows
       ? path.win32.normalize(this.outputBaseDisplay)
       : path.posix.normalize(this.outputBaseDisplay.replace(/\\/g, '/'));
+    const prefixRaw = this.configService.get<string>('OUTPUT_SERVE_PREFIX') || '/files';
+    const trimmed = prefixRaw.trim();
+    const sanitized = trimmed === '' ? '/files' : trimmed;
+    this.servePrefix = `/${sanitized.replace(/^\/+|\/+$/g, '')}`;
   }
 
   async persist(options: PersistOptions): Promise<PersistedAssets> {
@@ -92,6 +115,12 @@ export class DiskStorageService {
     const hashtagsDisplayPath = this.toDisplayPath(hashtagsFsPath);
     const metadataDisplayPath = this.toDisplayPath(metadataFsPath);
 
+    const folderServePath = this.toServePath(folderFs);
+    const finalServePath = this.toServePath(finalFsPath);
+    const captionServePath = this.toServePath(captionFsPath);
+    const hashtagsServePath = this.toServePath(hashtagsFsPath);
+    const metadataServePath = this.toServePath(metadataFsPath);
+
     const requestedImage = options.provider.requestedImage;
     const effectiveImage =
       options.provider.effectiveImage ||
@@ -118,6 +147,21 @@ export class DiskStorageService {
       hashtags: options.hashtags,
       provider: providerMetadata,
       imageUrl: options.imageUrl,
+      prompts: {
+        topic: options.topic,
+        visual: options.visualPrompt,
+        image: options.image?.prompt,
+        revisedImage: options.image?.revisedPrompt,
+      },
+      text: options.textMetadata,
+      image: options.image
+        ? {
+            provider: options.image.provider || effectiveImage,
+            model: options.image.model,
+            url: options.image.url || options.imageUrl,
+            metadata: options.image.metadata,
+          }
+        : undefined,
       requestedAt: options.requestedAt.toISOString(),
       startedAt: options.startedAt.toISOString(),
       completedAt: completedAt.toISOString(),
@@ -133,6 +177,13 @@ export class DiskStorageService {
           captionPath: captionFsPath,
           hashtagsPath: hashtagsFsPath,
           metadataPath: metadataFsPath,
+        },
+        public: {
+          folder: folderServePath,
+          finalPath: finalServePath,
+          captionPath: captionServePath,
+          hashtagsPath: hashtagsServePath,
+          metadataPath: metadataServePath,
         },
       },
       render: {
@@ -164,6 +215,13 @@ export class DiskStorageService {
         hashtagsPath: hashtagsFsPath,
         metadataPath: metadataFsPath,
       },
+      publicAssets: {
+        folder: folderServePath,
+        finalPath: finalServePath,
+        captionPath: captionServePath,
+        hashtagsPath: hashtagsServePath,
+        metadataPath: metadataServePath,
+      },
       metadata,
     };
   }
@@ -181,5 +239,27 @@ export class DiskStorageService {
     }
 
     return path.posix.join(this.displayBaseNormalized, ...segments);
+  }
+
+  private toServePath(fsPath: string): string {
+    const resolved = path.resolve(fsPath);
+    const relative = path.relative(this.outputBaseResolved, resolved);
+
+    if (!relative || relative === '' || relative.startsWith('..')) {
+      return this.servePrefix === '/' ? '/' : `${this.servePrefix}/`;
+    }
+
+    const normalized = relative
+      .split(path.sep)
+      .filter((segment) => segment && segment !== '.' && segment !== '..')
+      .join('/');
+
+    const prefix = this.servePrefix === '/' ? '' : this.servePrefix;
+
+    if (!normalized) {
+      return this.servePrefix === '/' ? '/' : `${prefix}/`;
+    }
+
+    return `${prefix}/${normalized}`.replace(/\/{2,}/g, '/');
   }
 }

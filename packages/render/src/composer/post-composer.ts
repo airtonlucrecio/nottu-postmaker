@@ -89,7 +89,38 @@ export class PostComposer {
         },
       };
     } catch (error) {
-      throw new Error(`Post composition failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (
+        options.engine === 'satori' &&
+        /no fonts are loaded/i.test(message)
+      ) {
+        console.warn(
+          '[PostComposer] Satori rendering failed because no fonts were available. Falling back to Puppeteer.',
+        );
+
+        const fallbackStart = Date.now();
+        buffer = await this.renderWithPuppeteer(content, imageUrl, settings, {
+          ...options,
+          engine: 'puppeteer',
+        });
+
+        const renderTime = Date.now() - fallbackStart;
+
+        return {
+          buffer,
+          metadata: {
+            width: options.width,
+            height: options.height,
+            format: options.format,
+            size: buffer.length,
+            engine: 'puppeteer',
+            renderTime,
+          },
+        };
+      }
+
+      throw new Error(`Post composition failed: ${message || 'Unknown error'}`);
     }
   }
 

@@ -20,11 +20,20 @@ export interface HistoryEntry {
     hashtagsPath: string;
     metadataPath: string;
   };
+  publicAssets?: {
+    folder: string;
+    finalPath: string;
+    captionPath: string;
+    hashtagsPath: string;
+    metadataPath: string;
+  };
   provider?: {
     text: string;
     requestedImage?: string;
     effectiveImage?: string;
   };
+  imagePrompt?: string;
+  metadata?: Record<string, any>;
   createdAt: string;
 }
 
@@ -54,6 +63,11 @@ export class HistoryService {
     } catch (error) {
       throw error;
     }
+  }
+
+  async findById(id: string): Promise<HistoryEntry | undefined> {
+    const history = await this.list();
+    return history.find((entry) => entry.id === id);
   }
 
   async deleteEntry(id: string): Promise<boolean> {

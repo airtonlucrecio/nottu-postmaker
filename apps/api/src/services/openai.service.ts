@@ -36,7 +36,7 @@ export class OpenAIService {
   constructor(private configService: ConfigService) {
     this.config = {
       apiKey: this.configService.get<string>('OPENAI_API_KEY') || '',
-      model: this.configService.get<string>('OPENAI_MODEL') || 'gpt-5',
+      model: this.configService.get<string>('OPENAI_MODEL') || 'gpt-4o-mini',
       reasoning: { 
         effort: this.configService.get<string>('OPENAI_REASONING_EFFORT') || 'medium' 
       },
@@ -58,7 +58,7 @@ export class OpenAIService {
 
     this.modelPriority = (
       this.configService.get<string>('OPENAI_MODEL_PRIORITY')
-        || 'gpt-5,gpt-4.1,gpt-4o-mini'
+        || 'gpt-4o-mini,gpt-4o,gpt-3.5-turbo'
     ).split(',').map(s => s.trim());
   }
 
