@@ -464,6 +464,9 @@ Original: ${JSON.stringify(content)}`;
       reasoning: this.config.reasoning,
       maxOutputTokens: this.config.maxOutputTokens,
       organization: this.config.organization,
+      imageModel: this.config.imageModel,
+      imageSize: this.config.imageSize,
+      imageQuality: this.config.imageQuality,
     };
   }
 

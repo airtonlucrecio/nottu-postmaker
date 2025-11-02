@@ -5,7 +5,6 @@ import { OpenAIService } from '../services/openai.service';
 import { VisualAIService } from '../services/visual-ai.service';
 import { DiskStorageService } from '../services/disk-storage.service';
 import { HistoryService } from '../services/history.service';
-import { LocalQueueService } from '../services/local-queue.service';
 import { GenerateController } from '../controllers/generate.controller';
 import { VisualAIModule } from './visual-ai.module';
 import { StorageModule } from './storage.module';
@@ -34,31 +33,21 @@ import { HistoryModule } from './history.module';
       useFactory: (
         configService: ConfigService,
         openaiService: OpenAIService,
-        visualAIService: VisualAIService,
+        visualAiService: VisualAIService,
         diskStorageService: DiskStorageService,
         historyService: HistoryService,
       ) => {
         return new GenerationService(
           configService,
           openaiService,
-          visualAIService,
+          visualAiService,
           diskStorageService,
           historyService,
         );
       },
       inject: [ConfigService, OpenAIService, VisualAIService, DiskStorageService, HistoryService],
     },
-    {
-      provide: LocalQueueService,
-      useFactory: (
-        historyService: HistoryService,
-        generationService: GenerationService,
-      ) => {
-        return new LocalQueueService(historyService, generationService);
-      },
-      inject: [HistoryService, GenerationService],
-    },
   ],
-  exports: [GenerationService, LocalQueueService],
+  exports: [GenerationService],
 })
 export class SimpleQueueModule {}

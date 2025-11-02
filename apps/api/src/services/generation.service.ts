@@ -1,16 +1,30 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PostComposer } from '@nottu/render';
-import {
-  JobProgress,
-  PostGenerationJobData,
-  PostGenerationResult,
-} from '@nottu/queue/src';
 import { GeneratePostDto } from '@nottu/core';
 import { OpenAIService } from './openai.service';
 import { VisualAIService } from './visual-ai.service';
 import { DiskStorageService } from './disk-storage.service';
 import { HistoryService } from './history.service';
+
+// Tipos locais para substituir os tipos de queue
+export interface GeneratePostRequest {
+  topic: string;
+  includeImage?: boolean;
+  imageProvider?: 'dalle';
+}
+
+export interface PostGenerationResult {
+  id: string;
+  topic: string;
+  caption: string;
+  hashtags: string[];
+  folder: string;
+  folderFs: string;
+  assets: any;
+  fsAssets: any;
+  metadata: any;
+}
 
 @Injectable()
 export class GenerationService {
@@ -30,33 +44,40 @@ export class GenerationService {
     this.imageProviderDefault = provider === 'dalle' ? 'dalle' : 'dalle';
   }
 
-  async processJob(
-    job: PostGenerationJobData,
-    update: (progress: JobProgress) => Promise<void>,
-  ): Promise<PostGenerationResult> {
-    const requestedAt = job.requestedAt ? new Date(job.requestedAt) : new Date();
+  async generatePost(request: GeneratePostRequest): Promise<PostGenerationResult> {
+    const id = this.generateId();
+    const requestedAt = new Date();
     const startedAt = new Date();
-    await update({ step: 'initializing', percentage: 5, message: 'Preparando geração' });
+    
+    this.logger.log(`Starting post generation for topic: ${request.topic}`);
 
     try {
-      const text = await this.generateText(job, update);
-      const requestedImageProvider = job.includeImage
-        ? job.imageProvider || this.imageProviderDefault
+      // Gerar texto (legenda e hashtags)
+      const text = await this.generateText(request.topic);
+      
+      // Determinar provedor de imagem
+      const requestedImageProvider = request.includeImage
+        ? request.imageProvider || this.imageProviderDefault
         : undefined;
 
       let effectiveImageProvider = requestedImageProvider;
 
+      // Gerar imagem se solicitado
       let imageResult: Awaited<ReturnType<GenerationService['generateImage']>>;
       if (effectiveImageProvider) {
-        imageResult = await this.generateImage(text.caption, effectiveImageProvider, update);
+        imageResult = await this.generateImage(text.caption, effectiveImageProvider);
       } else {
-        await update({ step: 'image', percentage: 55, message: 'Geração de imagem desabilitada' });
+        this.logger.log('Image generation disabled');
         imageResult = undefined;
       }
-      const composition = await this.composePost(text.caption, text.hashtags, imageResult?.dataUrl, update);
+      
+      // Compor o post final
+      const composition = await this.composePost(text.caption, text.hashtags, imageResult?.dataUrl);
+      
+      // Persistir dados
       const persisted = await this.diskStorageService.persist({
-        jobId: job.jobId,
-        topic: job.topic,
+        jobId: id,
+        topic: request.topic,
         caption: text.caption,
         hashtags: text.hashtags,
         provider: {
@@ -71,9 +92,10 @@ export class GenerationService {
         startedAt,
       });
 
+      // Adicionar ao histórico
       await this.historyService.append({
-        id: job.jobId,
-        topic: job.topic,
+        id: id,
+        topic: request.topic,
         caption: text.caption,
         hashtags: text.hashtags,
         folder: persisted.folder,
@@ -88,11 +110,11 @@ export class GenerationService {
         createdAt: persisted.metadata.completedAt || new Date().toISOString(),
       });
 
-      await update({ step: 'completed', percentage: 100, message: 'Geração concluída' });
+      this.logger.log(`Post generation completed for ID: ${id}`);
 
       return {
-        jobId: job.jobId,
-        status: 'completed',
+        id: id,
+        topic: request.topic,
         caption: text.caption,
         hashtags: text.hashtags,
         folder: persisted.folder,
@@ -101,7 +123,6 @@ export class GenerationService {
         fsAssets: persisted.fsAssets,
         metadata: {
           ...persisted.metadata,
-          job,
           timings: {
             requestedAt: requestedAt.toISOString(),
             startedAt: startedAt.toISOString(),
@@ -110,19 +131,20 @@ export class GenerationService {
         },
       };
     } catch (error) {
-      this.logger.error(`Job ${job.jobId} failed`, error instanceof Error ? error.stack : String(error));
-      await update({ step: 'failed', percentage: 100, message: (error as Error)?.message ?? 'Falha na geração' });
+      this.logger.error(`Post generation failed for topic: ${request.topic}`, error instanceof Error ? error.stack : String(error));
       throw error;
     }
   }
 
-  private async generateText(
-    job: PostGenerationJobData,
-    update: (progress: JobProgress) => Promise<void>,
-  ): Promise<{ caption: string; hashtags: string[] } > {
-    await update({ step: 'text', percentage: 25, message: 'Gerando legenda e hashtags' });
+  private generateId(): string {
+    return `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private async generateText(topic: string): Promise<{ caption: string; hashtags: string[] }> {
+    this.logger.log('Generating caption and hashtags');
+    
     const dto: GeneratePostDto = {
-      topic: job.topic,
+      topic: topic,
     } as GeneratePostDto;
 
     const result = await this.openaiService.generatePost(dto);
@@ -135,13 +157,12 @@ export class GenerationService {
   private async generateImage(
     caption: string,
     provider: string | undefined,
-    update: (progress: JobProgress) => Promise<void>,
   ): Promise<{ dataUrl: string; originalUrl?: string } | undefined> {
     if (!provider) {
       return undefined;
     }
 
-    await update({ step: 'image', percentage: 55, message: `Gerando imagem com ${provider}` });
+    this.logger.log(`Generating image with ${provider}`);
 
     const image = await this.visualAiService.generateImage(`Social media post: ${caption}`, provider as any);
     const format = image.metadata?.format || 'png';
@@ -160,9 +181,8 @@ export class GenerationService {
     caption: string,
     hashtags: string[],
     imageUrl: string | undefined,
-    update: (progress: JobProgress) => Promise<void>,
   ): Promise<{ buffer: Buffer; format: string; width: number; height: number; engine: string; size: number; renderTime: number }> {
-    await update({ step: 'render', percentage: 75, message: 'Renderizando arte final' });
+    this.logger.log('Rendering final artwork');
 
     if (!this.composerReady) {
       await this.composer.initialize();
