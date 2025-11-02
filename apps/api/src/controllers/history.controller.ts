@@ -1,56 +1,51 @@
-import { Controller, Get, Inject } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Get, Delete, Param, HttpException, HttpStatus, Inject } from '@nestjs/common';
 import { HistoryService } from '../services/history.service';
-import { HistoryEntryDto } from '../dto/history-entry.dto';
 
-@ApiTags('history')
 @Controller('history')
 export class HistoryController {
-  constructor(@Inject(HistoryService) private readonly historyService: HistoryService) {}
-
-  @Get('test')
-  @ApiOperation({
-    summary: 'Testar HistoryController',
-    description: 'Endpoint de teste para verificar se o HistoryController está funcionando',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Status do controller retornado com sucesso',
-    schema: {
-      type: 'object',
-      properties: {
-        message: { type: 'string', example: 'HistoryController is working' },
-        hasService: { type: 'boolean', example: true }
-      }
-    }
-  })
-  async test() {
-    return { message: 'HistoryController is working', hasService: !!this.historyService };
-  }
+  constructor(
+    @Inject(HistoryService) private readonly historyService: HistoryService,
+  ) {}
 
   @Get()
-  @ApiOperation({
-    summary: 'Listar histórico de posts',
-    description: 'Retorna todos os posts gerados anteriormente',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de posts do histórico retornada com sucesso',
-    type: [HistoryEntryDto],
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Erro interno do servidor',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 500 },
-        message: { type: 'string', example: 'HistoryService is not injected' },
-        error: { type: 'string', example: 'Internal Server Error' }
-      }
+  async getHistory() {
+    try {
+      const history = await this.historyService.getHistory();
+      return {
+        success: true,
+        data: history,
+        total: history.length,
+      };
+    } catch (error) {
+      throw new HttpException(
+        'Failed to fetch history',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
-  })
-  async list() {
-    return this.historyService.list();
+  }
+
+  @Delete(':id')
+  async deleteHistoryEntry(@Param('id') id: string) {
+    try {
+      const success = await this.historyService.deleteEntry(id);
+      
+      if (!success) {
+        throw new HttpException('Entry not found', HttpStatus.NOT_FOUND);
+      }
+
+      return {
+        success: true,
+        message: 'Entry deleted successfully',
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      throw new HttpException(
+        'Failed to delete entry',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

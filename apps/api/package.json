@@ -19,16 +19,15 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@fastify/static": "^7.0.4",
     "@nestjs/common": "^10.2.8",
     "@nestjs/config": "^3.1.1",
     "@nestjs/core": "^10.2.8",
     "@nestjs/platform-fastify": "^10.2.8",
     "@nestjs/schedule": "^4.0.0",
-    "@nestjs/swagger": "^7.1.16",
     "@nestjs/throttler": "^5.0.1",
     "@nottu/brand-kit": "file:../../packages/brand-kit",
     "@nottu/core": "file:../../packages/core",
-    "@nottu/queue": "file:../../packages/queue",
     "@nottu/render": "file:../../packages/render",
     "axios": "^1.6.2",
     "class-transformer": "^0.5.1",
@@ -36,7 +35,7 @@
     "date-fns": "^2.30.0",
     "openai": "^6.7.0",
     "puppeteer": "^21.5.2",
-    "sharp": "^0.32.6",
+    "reflect-metadata": "^0.2.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

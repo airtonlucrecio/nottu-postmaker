@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, Max, IsObject } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, Min, Max, IsObject, IsBoolean } from 'class-validator';
 import type { AIProviderName, ImageSize, ImageQuality } from '../types/ai.types';
 import type { AISettings, VisualAISettings } from '../types/ai.types';
 import { AIProvider } from '../enums/ai-provider.enum';
@@ -39,4 +39,8 @@ export class GeneratePostDto {
   @IsOptional()
   @IsObject()
   visualSettings?: VisualAISettings;
+
+  @IsOptional()
+  @IsBoolean()
+  includeImage?: boolean;
 }

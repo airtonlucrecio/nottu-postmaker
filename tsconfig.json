@@ -24,8 +24,7 @@
     "paths": {
       "@nottu/core": ["./packages/core/src"],
       "@nottu/brand-kit": ["./packages/brand-kit/src"],
-      "@nottu/render": ["./packages/render/src"],
-      "@nottu/queue": ["./packages/queue/src"]
+      "@nottu/render": ["./packages/render/src"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -44,7 +43,6 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/brand-kit" },
-    { "path": "./packages/render" },
-    { "path": "./packages/queue" }
+    { "path": "./packages/render" }
   ]
 }

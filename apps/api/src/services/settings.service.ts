@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { JsonStorageService } from './json-storage.service';
 
 export interface AppSettings {
@@ -33,7 +33,9 @@ const DEFAULT_SETTINGS: AppSettings = {
 export class SettingsService {
   private readonly fileName = 'settings.json';
 
-  constructor(private readonly storage: JsonStorageService) {}
+  constructor(
+    @Inject(JsonStorageService) private readonly storage: JsonStorageService
+  ) {}
 
   async get(): Promise<AppSettings> {
     return this.storage.read<AppSettings>(this.fileName, DEFAULT_SETTINGS);

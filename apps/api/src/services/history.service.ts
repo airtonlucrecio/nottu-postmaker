@@ -42,11 +42,31 @@ export class HistoryService {
     }
   }
 
+  async getHistory(): Promise<HistoryEntry[]> {
+    return this.list();
+  }
+
   async append(entry: HistoryEntry): Promise<void> {
     try {
       const currentHistory = await this.list();
       const updatedHistory = [entry, ...currentHistory]; // Add new entry at the beginning
       await this.storage.write(this.fileName, updatedHistory);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async deleteEntry(id: string): Promise<boolean> {
+    try {
+      const currentHistory = await this.list();
+      const filteredHistory = currentHistory.filter(entry => entry.id !== id);
+      
+      if (filteredHistory.length === currentHistory.length) {
+        return false; // Entry not found
+      }
+      
+      await this.storage.write(this.fileName, filteredHistory);
+      return true;
     } catch (error) {
       throw error;
     }

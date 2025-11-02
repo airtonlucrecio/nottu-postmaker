@@ -15,7 +15,7 @@ interface PostAssets {
   videos?: string[];
 }
 
-import { ValidationUtils } from '@nottu/core/utils/validation.utils';
+import { ValidationUtils } from '@nottu/core';
 import { PuppeteerEngine, RenderOptions } from '../engines/puppeteer-engine';
 import { SatoriEngine, SatoriRenderOptions } from '../engines/satori-engine';
 

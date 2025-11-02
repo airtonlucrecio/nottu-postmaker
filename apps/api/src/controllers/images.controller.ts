@@ -3,24 +3,14 @@ import {
   Post, 
   Body, 
   Get, 
-  ValidationPipe, 
   HttpCode,
   HttpStatus,
   BadRequestException,
   Inject
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { VisualAIService } from '../services/visual-ai.service';
 import { ConfigService } from '@nestjs/config';
-
-interface GenerateImageDto {
-  prompt: string;
-  provider?: 'dalle';
-  width?: number;
-  height?: number;
-  quality?: string;
-  style?: string;
-}
+import { GenerateImageDto } from '../dto/generate-image.dto';
 
 @Controller('images')
 export class ImagesController {
@@ -30,7 +20,7 @@ export class ImagesController {
 
   @Post('generate')
   @HttpCode(HttpStatus.OK)
-  async generateImage(@Body(ValidationPipe) dto: GenerateImageDto) {
+  async generateImage(@Body() dto: GenerateImageDto) {
     if (!dto.prompt || dto.prompt.trim().length === 0) {
       throw new BadRequestException('Prompt is required');
     }

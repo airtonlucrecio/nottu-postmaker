@@ -20,7 +20,8 @@ async function build() {
         'openai',
         'puppeteer',
         'sharp',
-        'uuid'
+        'uuid',
+        'reflect-metadata'
       ],
       sourcemap: false,
       minify: false,

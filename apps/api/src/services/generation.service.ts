@@ -5,7 +5,7 @@ import {
   JobProgress,
   PostGenerationJobData,
   PostGenerationResult,
-} from '@nottu/queue';
+} from '@nottu/queue/src';
 import { GeneratePostDto } from '@nottu/core';
 import { OpenAIService } from './openai.service';
 import { VisualAIService } from './visual-ai.service';

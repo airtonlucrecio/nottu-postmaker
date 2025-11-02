@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import axios from 'axios';
@@ -40,6 +40,7 @@ export interface ImageGenerationResult {
 
 @Injectable()
 export class VisualAIService implements OnModuleInit {
+  private readonly logger = new Logger(VisualAIService.name);
   private openai?: OpenAI;
   private config: VisualAIConfig;
 
@@ -250,7 +251,7 @@ export class VisualAIService implements OnModuleInit {
       });
       return Buffer.from(response.data);
     } catch (error) {
-      console.warn('Failed to download image:', error);
+      this.logger.warn('Failed to download image:', error);
       return undefined;
     }
   }
