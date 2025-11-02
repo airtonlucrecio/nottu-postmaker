@@ -20,6 +20,13 @@ export interface HistoryEntry {
     hashtagsPath: string;
     metadataPath: string;
   };
+  publicAssets?: {
+    folder: string;
+    finalPath: string;
+    captionPath: string;
+    hashtagsPath: string;
+    metadataPath: string;
+  };
   provider?: {
     text: string;
     requestedImage?: string;

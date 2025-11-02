@@ -41,23 +41,35 @@ export function HistoryPage() {
   const loadHistory = async () => {
     try {
       setLoading(true);
-      const historyData = await apiService.getHistory();
-      
+      const rawHistory = await apiService.getHistory();
+      const historyItems: any[] = Array.isArray(rawHistory)
+        ? rawHistory
+        : Array.isArray(rawHistory?.data)
+        ? rawHistory.data
+        : [];
+
       // Convert API data to Post format
-      const convertedPosts: Post[] = historyData.map((item: any) => ({
-        id: item.id,
-        caption: item.caption,
-        hashtags: item.hashtags || [],
-        createdAt: new Date(item.createdAt),
-        status: 'completed' as const,
-        imageUrl: item.fsAssets?.finalPath ? `http://localhost:3001/${item.fsAssets.finalPath}` : undefined,
-        engagement: {
-          likes: Math.floor(Math.random() * 300) + 50,
-          comments: Math.floor(Math.random() * 50) + 5,
-          shares: Math.floor(Math.random() * 20) + 2
-        }
-      }));
-      
+      const convertedPosts: Post[] = historyItems.map((item: any) => {
+        const imagePath =
+          item?.publicAssets?.finalPath ||
+          item?.metadata?.output?.public?.finalPath ||
+          item?.metadata?.image?.url;
+
+        return {
+          id: item.id,
+          caption: item.caption,
+          hashtags: item.hashtags || [],
+          createdAt: new Date(item.createdAt),
+          status: 'completed' as const,
+          imageUrl: apiService.resolveAssetUrl(imagePath) || item?.metadata?.image?.url,
+          engagement: {
+            likes: Math.floor(Math.random() * 300) + 50,
+            comments: Math.floor(Math.random() * 50) + 5,
+            shares: Math.floor(Math.random() * 20) + 2
+          }
+        };
+      });
+
       setPosts(convertedPosts);
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);

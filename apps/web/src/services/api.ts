@@ -32,6 +32,13 @@ export interface JobStatus {
       hashtagsPath: string;
       metadataPath: string;
     };
+    publicAssets?: {
+      folder?: string;
+      finalPath?: string;
+      captionPath?: string;
+      hashtagsPath?: string;
+      metadataPath?: string;
+    };
     metadata: any;
   };
   timestamps: {
@@ -79,10 +86,42 @@ class ApiService {
     );
   }
 
+  getBaseUrl(): string {
+    return this.client.defaults.baseURL || '';
+  }
+
+  resolveAssetUrl(path?: string | null): string | undefined {
+    if (!path) {
+      return undefined;
+    }
+
+    const normalizedInput = path.replace(/\\/g, '/');
+
+    if (/^(https?:)?\/\//i.test(normalizedInput) || normalizedInput.startsWith('data:')) {
+      return normalizedInput;
+    }
+
+    const baseUrl = this.getBaseUrl();
+    const normalizedPath = normalizedInput.startsWith('/') ? normalizedInput : `/${normalizedInput}`;
+
+    if (!baseUrl) {
+      return normalizedPath;
+    }
+
+    const baseWithSlash = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
+    try {
+      return new URL(normalizedPath, baseWithSlash).toString();
+    } catch (error) {
+      return `${baseUrl.replace(/\/+$/, '')}${normalizedPath}`;
+    }
+  }
+
   // History endpoints
   async getHistory() {
     const response = await this.client.get('/api/history');
-    return response.data;
+    const payload = response.data as { data?: unknown } | undefined;
+    return (payload && Array.isArray(payload.data)) ? payload.data : response.data;
   }
 
   // Settings endpoints

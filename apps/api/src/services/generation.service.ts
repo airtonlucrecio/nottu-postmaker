@@ -4,7 +4,7 @@ import { PostComposer } from '@nottu/render';
 import { GeneratePostDto, PostContent } from '@nottu/core';
 import { OpenAIService } from './openai.service';
 import { VisualAIService, type ImageGenerationResult } from './visual-ai.service';
-import { DiskStorageService } from './disk-storage.service';
+import { DiskStorageService, type PersistedAssets } from './disk-storage.service';
 import { HistoryService } from './history.service';
 
 // Tipos locais para substituir os tipos de queue
@@ -21,8 +21,9 @@ export interface PostGenerationResult {
   hashtags: string[];
   folder: string;
   folderFs: string;
-  assets: any;
-  fsAssets: any;
+  assets: PersistedAssets['assets'];
+  fsAssets: PersistedAssets['fsAssets'];
+  publicAssets: PersistedAssets['publicAssets'];
   metadata: any;
   provider: {
     text: string;
@@ -153,6 +154,7 @@ export class GenerationService {
         folderFs: persisted.folderFs,
         assets: persisted.assets,
         fsAssets: persisted.fsAssets,
+        publicAssets: persisted.publicAssets,
         provider: {
           text: 'openai',
           requestedImage: requestedImageProvider,
@@ -174,6 +176,7 @@ export class GenerationService {
         folderFs: persisted.folderFs,
         assets: persisted.assets,
         fsAssets: persisted.fsAssets,
+        publicAssets: persisted.publicAssets,
         provider: {
           text: 'openai',
           requestedImage: requestedImageProvider,

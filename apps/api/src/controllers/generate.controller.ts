@@ -64,6 +64,7 @@ export class GenerateController {
           folderFs: result.folderFs,
           assets: result.assets,
           fsAssets: result.fsAssets,
+          publicAssets: result.publicAssets,
           textMetadata: result.textMetadata,
         },
         metadata: result.metadata,
@@ -93,6 +94,8 @@ export class GenerateController {
       }
     }
 
+    const publicAssets = entry.publicAssets || metadata?.output?.public;
+
     return {
       id,
       status: 'completed',
@@ -108,6 +111,7 @@ export class GenerateController {
         folder: entry.folder,
         folderFs: entry.folderFs,
         fsAssets: entry.fsAssets,
+        publicAssets,
         metadata,
       },
       timestamps: {
