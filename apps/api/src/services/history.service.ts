@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { JsonStorageService } from './json-storage.service';
 
 export interface HistoryEntry {
@@ -39,14 +39,20 @@ export interface HistoryEntry {
 
 @Injectable()
 export class HistoryService {
+  private readonly logger = new Logger(HistoryService.name);
   private readonly fileName = 'history.json';
 
-  constructor(private readonly storage: JsonStorageService) {}
+  constructor(@Inject(JsonStorageService) private readonly storage: JsonStorageService) {
+    this.logger.debug('HistoryService constructor called');
+    this.logger.debug(`JsonStorageService injected: ${!!this.storage}`);
+  }
 
   async list(): Promise<HistoryEntry[]> {
     try {
-      return await this.storage.read<HistoryEntry[]>(this.fileName, []) || [];
+      const result = await this.storage.read<HistoryEntry[]>(this.fileName, []) || [];
+      return result;
     } catch (error) {
+      this.logger.error('Error in list():', error);
       return [];
     }
   }
@@ -57,10 +63,15 @@ export class HistoryService {
 
   async append(entry: HistoryEntry): Promise<void> {
     try {
+      this.logger.debug('Append method called');
+      this.logger.debug(`Storage service available: ${!!this.storage}`);
+      this.logger.debug(`Storage write method available: ${!!this.storage?.write}`);
+      
       const currentHistory = await this.list();
       const updatedHistory = [entry, ...currentHistory]; // Add new entry at the beginning
       await this.storage.write(this.fileName, updatedHistory);
     } catch (error) {
+      this.logger.error('Error in append method:', error);
       throw error;
     }
   }

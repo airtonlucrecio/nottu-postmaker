@@ -13,6 +13,7 @@ import {
 import { promises as fs } from 'fs';
 import { HistoryService } from '../services/history.service';
 import { GenerationService } from '../services/generation.service';
+import { OpenAIService } from '../services/openai.service';
 import { GenerateRequestDto } from '../dto/generate-request.dto';
 
 @Controller('generate')
@@ -20,6 +21,7 @@ export class GenerateController {
   constructor(
     @Inject(HistoryService) private readonly historyService: HistoryService,
     @Inject(GenerationService) private readonly generationService: GenerationService,
+    @Inject(OpenAIService) private readonly openaiService: OpenAIService,
   ) {}
 
   @Post()
@@ -121,6 +123,30 @@ export class GenerateController {
           metadata?.completedAt || metadata?.timings?.completedAt || entry.createdAt,
       },
     };
+  }
+
+  @Get('test-openai')
+  @HttpCode(HttpStatus.OK)
+  async testOpenAI() {
+    try {
+      const result = await this.openaiService.testSimpleRequest();
+      return {
+        success: true,
+        message: 'OpenAI test completed',
+        result
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: 'OpenAI test failed',
+        error: error?.message,
+        details: {
+          status: error?.status,
+          code: error?.code,
+          type: error?.type
+        }
+      };
+    }
   }
 }
 

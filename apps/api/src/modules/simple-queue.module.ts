@@ -28,6 +28,7 @@ import { HistoryModule } from './history.module';
       },
       inject: [ConfigService],
     },
+
     {
       provide: GenerationService,
       useFactory: (

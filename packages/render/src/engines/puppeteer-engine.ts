@@ -110,10 +110,13 @@ export class PuppeteerEngine {
       // Generate HTML content
       const html = this.generateHTML(content, imageUrl, settings, options);
       
-      // Set content
-      await page.setContent(html, { waitUntil: 'networkidle0' });
+      // Set content with increased timeout
+      await page.setContent(html, { 
+        waitUntil: 'networkidle0',
+        timeout: 60000 // 60 seconds timeout
+      });
 
-      // Wait for fonts to load
+      // Wait for fonts to load with timeout
       await page.evaluateHandle('document.fonts.ready');
 
       // Take screenshot

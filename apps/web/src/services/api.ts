@@ -58,7 +58,7 @@ class ApiService {
     
     this.client = axios.create({
       baseURL,
-      timeout: 30000, // 30 seconds timeout
+      // Removed timeout to allow unlimited processing time for image generation
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
